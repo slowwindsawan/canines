@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'AlbertSans';
+  src: url('./assets/fonts/AlbertSans.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'InstrumentSans';
+  src: url('./assets/fonts/InstrumentSans.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
