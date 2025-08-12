@@ -233,40 +233,27 @@ export const mockArticles: EducationalArticle[] = [
 export const membershipTiers: MembershipTier[] = [
   {
     id: 'starter',
-    name: 'Starter',
+    name: 'Foundation',
     price: '$29/month',
     features: [
-      'Basic symptom intake',
-      'General protocol recommendations',
-      'Monthly progress tracking',
-      'Access to educational content',
+      'AI gut plan', 'Tips', 'Library', 'Guides',
     ],
   },
   {
     id: 'deepdive',
-    name: 'Deep Dive',
+    name: 'Therapeutic Plan',
     price: '$69/month',
     features: [
-      'Comprehensive symptom analysis',
-      'Detailed custom protocols',
-      'Weekly progress tracking',
-      'Priority support',
-      'Advanced educational resources',
-      'Supplement recommendations',
+      'Foundations + ','Weekly meal plans', 'Symptom tracker charts', 'supplement cycling', 'phase upgrade request',
     ],
     recommended: true,
   },
   {
     id: 'custom',
-    name: 'Custom',
+    name: 'Comprehensive Plan',
     price: '$149/month',
     features: [
-      'One-on-one consultation',
-      'Fully personalized protocols',
-      'Daily progress monitoring',
-      '24/7 support access',
-      'Custom supplement formulations',
-      'Direct veterinarian access',
+      'Therapeutic + ','Live group calls','Personalised AI-human reviews','Discount on 1:1 consult with me.'
     ],
   },
 ];

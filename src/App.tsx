@@ -185,6 +185,17 @@ function App() {
                 }
               />
 
+              <Route
+                path="/subscription"
+                element={
+                  <ProtectedRoute>
+                    <UserLayout>
+                      <Tiers />
+                    </UserLayout>
+                  </ProtectedRoute>
+                }
+              />
+
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Router>

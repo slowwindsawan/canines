@@ -1,8 +1,8 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Heart, Menu, X } from 'lucide-react';
-import logo from './logo.png';
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { Bell, Heart, Menu, X } from "lucide-react";
+import logo from "./logo.png";
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -10,9 +10,10 @@ const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard' },
-    { name: 'Education', href: '/education' },
-    { name: 'Account', href: '/account' },
+    { name: "Dashboard", href: "/dashboard" },
+    { name: "Education", href: "/education" },
+    { name: "Account", href: "/account" },
+    { name: "Subscription", href: "/subscription" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -23,7 +24,9 @@ const Navbar: React.FC = () => {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link to="/dashboard" className="flex items-center space-x-2">
-              <span className="text-xl font-bold text-dark-900"><img className="w-[150px] sm:w-[200px]" src={logo} /></span>
+              <span className="text-xl font-bold text-dark-900">
+                <img className="w-[150px] sm:w-[200px]" src={logo} />
+              </span>
             </Link>
           </div>
 
@@ -37,15 +40,20 @@ const Navbar: React.FC = () => {
                     to={item.href}
                     className={`${
                       isActive(item.href)
-                        ? 'text-dark-900 border-b-2 border-dark-900'
-                        : 'text-dark-700 hover:text-dark-900'
+                        ? "text-dark-900 border-b-2 border-dark-900"
+                        : "text-dark-700 hover:text-dark-900"
                     } px-3 py-2 text-sm font-medium transition-colors`}
                   >
                     {item.name}
                   </Link>
                 ))}
+                <div>
+                  <Bell size={20} />
+                </div>
                 <div className="flex items-center space-x-4">
-                  <span className="text-sm text-dark-700">Welcome, {user.name}</span>
+                  <span className="text-sm text-dark-700">
+                    Welcome, {user.name}
+                  </span>
                   <Link
                     to="/admin"
                     className="bg-primary-300 hover:bg-primary-400 text-dark-800 px-3 sm:px-4 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors"
@@ -70,7 +78,11 @@ const Navbar: React.FC = () => {
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="text-dark-700 hover:text-dark-900"
               >
-                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {isMenuOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
               </button>
             </div>
           )}
@@ -87,8 +99,8 @@ const Navbar: React.FC = () => {
                 to={item.href}
                 className={`${
                   isActive(item.href)
-                    ? 'text-dark-900 bg-primary-300'
-                    : 'text-dark-700 hover:text-dark-900'
+                    ? "text-dark-900 bg-primary-300"
+                    : "text-dark-700 hover:text-dark-900"
                 } block px-3 py-2 text-base font-medium transition-colors`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -97,7 +109,9 @@ const Navbar: React.FC = () => {
             ))}
             <div className="border-t border-primary-400 pt-4 pb-3">
               <div className="px-3">
-                <p className="text-sm text-dark-700 mb-2">Welcome, {user.name}</p>
+                <p className="text-sm text-dark-700 mb-2">
+                  Welcome, {user.name}
+                </p>
                 <Link
                   to="/admin"
                   className="w-full bg-primary-300 hover:bg-primary-400 text-dark-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors block text-center mb-2"

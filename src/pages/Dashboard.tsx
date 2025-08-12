@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { url, z } from "zod";
 import { useAuth } from "../context/AuthContext";
 import { useDog } from "../context/DogContext";
 import { useAdmin } from "../context/AdminContext";
 import { mockProgressData, mockProtocols } from "../data/mockData";
+import paws from "../assets/paws.png";
+import foodIcon from "../assets/pet-food.png";
 import {
   ClipboardList,
   FileText,
@@ -35,6 +37,7 @@ import {
   Carrot,
   ArrowRight,
   Circle,
+  Lock,
 } from "lucide-react";
 import HealthUpdateForm from "../components/HealthUpdateForm";
 
@@ -414,24 +417,29 @@ const Dashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div
-          className="bg-gradient-to-r p-8 text-white mb-8 rounded-2xl"
+          className="bg-gradient-to-r p-2 text-white mb-8 rounded-2xl relative"
           style={{ background: "linear-gradient(45deg, #5A5A5A, #313030)" }}
         >
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+          <div
+            className="absolute inset-0 bg-center bg-cover opacity-20"
+            style={{
+              backgroundImage: `url(${paws})`,
+              backgroundSize: "auto",
+            }}
+          ></div>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-6">
             <div className="mb-6 lg:mb-0">
               <h1 className="text-3xl font-bold mb-2 ">
-                Welcome back, {user?.name}! 🐾
+                Welcome back, {user?.name}!
               </h1>
               <p className="text-lg text-blue-100">
-                Professional AI-powered pet health management
+                Your dog's personalised gut health journey starts here
               </p>
             </div>
             <div className="flex flex-col items-start lg:items-end">
               <div className="flex items-center space-x-2 mb-2">
                 <Award className="h-5 w-5 text-blue-200" />
-                <span className="text-sm text-blue-200">
-                  Your Current Gut Plan
-                </span>
+                <span className="text-sm text-blue-200">Foundation</span>
               </div>
               <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
                 {user?.membershipTier?.charAt(0).toUpperCase() +
@@ -439,138 +447,137 @@ const Dashboard: React.FC = () => {
               </span>
             </div>
           </div>
-        </div>
-
-        {/* Dog Management Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          {selectedDog ? (
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center space-x-6 mb-6 lg:mb-0">
-                <div className="w-16 h-16 bg-gradient-to-br bg-brand-offwhite rounded-full flex items-center justify-center">
-                  <Dog className="h-8 w-8 text-brand-charcol" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 ">
-                    {selectedDog.name}
-                  </h2>
-                  <p className="text-gray-600">
-                    {selectedDog.breed} • {selectedDog.age} years old •{" "}
-                    {selectedDog.weight} lbs
-                  </p>
-                  <div className="flex items-center space-x-2 mt-2">
-                    {getTrendIcon(metrics.recentTrend)}
-                    <span
-                      className={`text-sm font-medium ${getTrendColor(
-                        metrics.recentTrend
-                      )}`}
-                    >
-                      Health trend: {metrics.recentTrend}
-                    </span>
+          {/* Dog Management Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            {selectedDog ? (
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center space-x-6 mb-6 lg:mb-0">
+                  <div className="w-16 h-16 bg-gradient-to-br bg-brand-offwhite rounded-full flex items-center justify-center">
+                    <Dog className="h-8 w-8 text-brand-charcoal" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 ">
+                      {selectedDog.name}
+                    </h2>
+                    <p className="text-gray-600">
+                      {selectedDog.breed} • {selectedDog.age} years old •{" "}
+                      {selectedDog.weight} lbs
+                    </p>
+                    <div className="flex items-center space-x-2 mt-2">
+                      {getTrendIcon(metrics.recentTrend)}
+                      <span
+                        className={`text-sm font-medium ${getTrendColor(
+                          metrics.recentTrend
+                        )}`}
+                      >
+                        Health trend: {metrics.recentTrend}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center space-x-3">
-                {dogs.length > 1 && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowDogSelector(!showDogSelector)}
-                      className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors"
-                    >
-                      <span className="text-sm font-medium">Switch Pet</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </button>
+                <div className="flex items-center space-x-3">
+                  {dogs.length > 1 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowDogSelector(!showDogSelector)}
+                        className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors"
+                      >
+                        <span className="text-sm font-medium">Switch Pet</span>
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
 
-                    {showDogSelector && (
-                      <div className="absolute left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-gray-200 z-10">
-                        <div className="p-3 sm:p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 ">
-                              Select Pet
-                            </h3>
-                            <button
-                              onClick={() => setShowDogSelector(false)}
-                              className="text-gray-400 hover:text-gray-600"
-                            >
-                              <X className="h-5 w-5" />
-                            </button>
-                          </div>
-                          <div className="space-y-2 max-h-60 sm:max-h-64 overflow-y-auto">
-                            {dogs.map((dog) => (
+                      {showDogSelector && (
+                        <div className="absolute left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-gray-200 z-10">
+                          <div className="p-3 sm:p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="text-base sm:text-lg font-semibold text-gray-900 ">
+                                Select Pet
+                              </h3>
                               <button
-                                key={dog.id}
-                                onClick={() => {
-                                  selectDog(dog.id);
-                                  setShowDogSelector(false);
-                                }}
-                                className={`w-full flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg text-left transition-colors ${
-                                  selectedDog?.id === dog.id
-                                    ? "bg-brand-offwhite"
-                                    : "hover:bg-gray-50"
-                                }`}
+                                onClick={() => setShowDogSelector(false)}
+                                className="text-gray-400 hover:text-gray-600"
                               >
-                                <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <Dog className="h-4 w-4 text-brand-charcoal" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900 truncate">
-                                    {dog.name}
-                                  </p>
-                                  <p className="text-xs text-gray-500 truncate">
-                                    {dog.breed} • {dog.age} years old
-                                  </p>
-                                </div>
-                                {selectedDog?.id === dog.id && (
-                                  <CheckCircle className="h-5 w-5 text-brand-midgrey flex-shrink-0" />
-                                )}
+                                <X className="h-5 w-5" />
                               </button>
-                            ))}
-                          </div>
-                          <div className="mt-3 sm:mt-4 pt-3 border-t border-gray-200">
-                            <Link
-                              to="/intake"
-                              onClick={() => setShowDogSelector(false)}
-                              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r  px-3 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] text-sm sm:text-base bg-brand-charcoal text-brand-offwhite hover:bg-gray-900 hover:text-white"
-                            >
-                              <Plus className="h-4 w-4" />
-                              <span>Add New Pet</span>
-                            </Link>
+                            </div>
+                            <div className="space-y-2 max-h-60 sm:max-h-64 overflow-y-auto">
+                              {dogs.map((dog) => (
+                                <button
+                                  key={dog.id}
+                                  onClick={() => {
+                                    selectDog(dog.id);
+                                    setShowDogSelector(false);
+                                  }}
+                                  className={`w-full flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg text-left transition-colors ${
+                                    selectedDog?.id === dog.id
+                                      ? "bg-brand-offwhite"
+                                      : "hover:bg-gray-50"
+                                  }`}
+                                >
+                                  <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <Dog className="h-4 w-4 text-brand-charcoal" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {dog.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500 truncate">
+                                      {dog.breed} • {dog.age} years old
+                                    </p>
+                                  </div>
+                                  {selectedDog?.id === dog.id && (
+                                    <CheckCircle className="h-5 w-5 text-brand-midgrey flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-3 sm:mt-4 pt-3 border-t border-gray-200">
+                              <Link
+                                to="/intake"
+                                onClick={() => setShowDogSelector(false)}
+                                className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r  px-3 sm:px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] text-sm sm:text-base bg-brand-charcoal text-brand-offwhite hover:bg-gray-900 hover:text-white"
+                              >
+                                <Plus className="h-4 w-4" />
+                                <span>Add New Pet</span>
+                              </Link>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
 
+                  <Link
+                    to="/intake"
+                    className="flex items-center space-x-2 bg-gradient-to-r px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] bg-brand-charcoal text-brand-offwhite hover:bg-gray-900 hover:text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add New Pet</span>
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Dog className="h-10 w-10 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2 ">
+                  No pets added yet
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Start your pet's health journey by adding their profile
+                </p>
                 <Link
                   to="/intake"
-                  className="flex items-center space-x-2 bg-gradient-to-r px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] bg-brand-charcoal text-brand-offwhite hover:bg-gray-900 hover:text-white"
+                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
                 >
-                  <Plus className="h-4 w-4" />
-                  <span>Add New Pet</span>
+                  <Plus className="h-5 w-5" />
+                  <span>Add Your First Pet</span>
                 </Link>
               </div>
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Dog className="h-10 w-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2 ">
-                No pets added yet
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Start your pet's health journey by adding their profile
-              </p>
-              <Link
-                to="/intake"
-                className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
-              >
-                <Plus className="h-5 w-5" />
-                <span>Add Your First Pet</span>
-              </Link>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {selectedDog && (
@@ -597,19 +604,119 @@ const Dashboard: React.FC = () => {
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                     }`}
                   >
-                    Health Protocol
+                    Gut Health Protocol
                   </button>
-                  <button
-                    onClick={() => setActiveTab("tracker")}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                      activeTab === "tracker"
-                        ? "text-brand-charcoal border-brand-charcoal"
-                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }`}
-                  >
-                    Progress Tracker
-                  </button>
+                  <div className="relative inline-block group">
+                    <button
+                      onClick={() => setActiveTab("tracker")}
+                      className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center ${
+                        activeTab === "tracker"
+                          ? "text-brand-charcoal border-brand-charcoal"
+                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      }`}
+                    >
+                      Progress Tracker
+                      <Lock
+                        className="ml-2 text-bold text-brand-midgrey"
+                        size={15}
+                      />
+                    </button>
+
+                    {/* Popover */}
+                    <div
+                      className="absolute top-full left-1 -translate-x-1/2 mt-2 bg-white shadow-lg rounded-lg border border-gray-200 p-4 text-sm z-50 w-80 
+    opacity-0 scale-95 invisible 
+    group-hover:opacity-100 group-hover:scale-100 group-hover:visible 
+    transition-all duration-300 ease-out origin-top"
+                    >
+                      <h3 className="font-semibold text-gray-800 mb-3">
+                        Compare plans and features
+                      </h3>
+
+                      <div className="space-y-3">
+                        {/* Foundation Plan */}
+                        <div className="border rounded-lg p-3 hover:shadow-md transition-shadow duration-200">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium">Foundation</span>
+                            <span className="text-gray-500">$29/mo</span>
+                          </div>
+                          <ul className="list-disc list-inside text-gray-600 text-xs space-y-1">
+                            <li>AI gut plan</li>
+                            <li>Tips</li>
+                            <li>Library</li>
+                            <li>Guides</li>
+                          </ul>
+                        </div>
+
+                        {/* Therapeutic Plan */}
+                        <div className="border-2 border-green-500 rounded-lg p-3 bg-green-50 hover:shadow-md transition-shadow duration-200">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-semibold text-green-700">
+                              Therapeutic Plan (Recommended)
+                            </span>
+                            <span className="text-green-700 font-medium">
+                              $69/mo
+                            </span>
+                          </div>
+                          <ul className="list-disc list-inside text-gray-700 text-xs space-y-1">
+                            <li>Foundations +</li>
+                            <li>Weekly meal plans</li>
+                            <li>Symptom tracker charts</li>
+                            <li>Supplement cycling</li>
+                            <li>Phase upgrade request</li>
+                          </ul>
+                        </div>
+
+                        {/* Comprehensive Plan */}
+                        <div className="border rounded-lg p-3 hover:shadow-md transition-shadow duration-200">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium">
+                              Comprehensive Plan
+                            </span>
+                            <span className="text-gray-500">$149/mo</span>
+                          </div>
+                          <ul className="list-disc list-inside text-gray-600 text-xs space-y-1">
+                            <li>Therapeutic +</li>
+                            <li>Live group calls</li>
+                            <li>Personalised AI-human reviews</li>
+                            <li>Discount on 1:1 consult</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </nav>
+              </div>
+
+              {/* Phase banner */}
+              <div className="flex items-center justify-center my-4 w-full bg-white py-3 px-8">
+                {/* Step 1: Past */}
+                <div className="flex items-center">
+                  <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-charcoal text-white text-xs font-bold">
+                    ✓
+                  </div>
+                  <span className="ml-2 text-gray-600">Reset</span>
+                </div>
+                <div className="mx-4 h-0.5 w-8 bg-brand-charcoal"></div>
+
+                {/* Step 2: Current */}
+                <div className="flex items-center">
+                  <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-midgrey text-white text-xs font-bold">
+                    2
+                  </div>
+                  <span className="ml-2 font-bold text-brand-midgrey">
+                    Rebuild
+                  </span>
+                </div>
+                <div className="mx-4 h-0.5 w-8 bg-gray-300"></div>
+
+                {/* Step 3: Future */}
+                <div className="flex items-center">
+                  <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-300 text-gray-500 text-xs font-bold">
+                    3
+                  </div>
+                  <span className="ml-2 text-gray-400">Strengthen</span>
+                </div>
               </div>
 
               {/* Tab Content */}
@@ -620,17 +727,21 @@ const Dashboard: React.FC = () => {
                     {/* Today's Meal Plan */}
                     <div>
                       <div className="flex items-center space-x-2 mb-6">
-                        <Utensils className="h-6 w-6 text-orange-600" />
+                        <img src={foodIcon} style={{ height: "52px" }} />
                         <h2 className="text-xl font-bold text-gray-900 ">
                           Today's Meal Plan
                         </h2>
                         <div className="flex items-center space-x-2 bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
                           <Clock className="h-4 w-4" />
                           <span>
-                            Phase: Reset - calming the storm in the gut
+                            Phase: Reset - calming the storm in the gut - 56%
                           </span>
                         </div>
                       </div>
+
+                      <p className="mb-4 text-sm">
+                        Estimated time: 9 days, Next review: 03/05/2026
+                      </p>
 
                       {dogProtocol ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -680,7 +791,7 @@ const Dashboard: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Health Metrics */}
+                    {/* Gut check */}
                     <>
                       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div className="text-center">
@@ -704,7 +815,47 @@ const Dashboard: React.FC = () => {
                         </div>
                       </div>
                     </>
-                    <div>
+
+                    {/* Wins tracker */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                        Quick Wins Tracker
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-brand-offwhite rounded-full flex items-center justify-center mx-auto mb-2">
+                            <CheckCircle className="h-8 w-8 text-brand-charcoal" />
+                          </div>
+                          <h4 className="font-medium text-gray-900">
+                            Stool Quality
+                          </h4>
+                          <p className="text-sm text-gray-600">Improving</p>
+                        </div>
+
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <AlertCircle className="h-8 w-8 text-yellow-600" />
+                          </div>
+                          <h4 className="font-medium text-gray-900">
+                            Energy Level
+                          </h4>
+                          <p className="text-sm text-gray-600">Stable</p>
+                        </div>
+
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <Activity className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <h4 className="font-medium text-gray-900">
+                            Overall Health
+                          </h4>
+                          <p className="text-sm text-gray-600">Good</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* <div>
                       <h2 className="text-xl font-bold text-gray-900 mb-6 ">
                         How Maple’s Doing
                       </h2>
@@ -823,14 +974,14 @@ const Dashboard: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </div> */}
 
                     {/* Next steps */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                       <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold text-gray-900 flex items-center">
                           <ArrowRight className="h-6 w-6 text-blue-600 mr-2" />
-                          Your Next Steps
+                          What to do now (Goals)
                         </h2>
                         <div className="text-sm text-gray-600">
                           {completedCount}/{nextSteps.length} completed
@@ -972,7 +1123,7 @@ const Dashboard: React.FC = () => {
                             <p className="text-sm text-green-800">
                               <strong>Excellent work!</strong> You've completed
                               all current action items for {selectedDog.name}.
-                              New steps will appear as you progress through the
+                              New steps will appear as you progress through the gut health
                               protocol.
                             </p>
                           </div>
@@ -1239,7 +1390,7 @@ const Dashboard: React.FC = () => {
                             <CheckCircle className="h-12 w-12 text-brand-midgrey" />
                           </div>
                           <h1 className="text-3xl font-bold text-gray-900 mb-2 ">
-                            {selectedDog.name}'s Health Protocol
+                            {selectedDog.name}'s Gut Health Protocol
                           </h1>
                           <p className="text-lg text-gray-600">
                             Custom plan for your {selectedDog.breed}
@@ -1349,9 +1500,20 @@ const Dashboard: React.FC = () => {
                             {currentProtocol.lifestyleTips.map((tip, index) => (
                               <div
                                 key={index}
-                                className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-lg"
+                                onClick={(e) => {
+                                  const [hollow, filled] =
+                                    e.currentTarget.querySelectorAll("svg");
+                                  hollow.classList.toggle("hidden");
+                                  filled.classList.toggle("hidden");
+                                }}
+                                className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-lg cursor-pointer"
                               >
-                                <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                                {/* Hollow (default) */}
+                                <Circle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
+
+                                {/* Filled (hidden by default) */}
+                                <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0 hidden" />
+
                                 <p className="text-gray-700">{tip}</p>
                               </div>
                             ))}
@@ -1419,14 +1581,14 @@ const Dashboard: React.FC = () => {
                           <Heart className="h-10 w-10 text-orange-600" />
                         </div>
                         <h1 className="text-3xl font-bold text-gray-900 mb-4 ">
-                          Protocol Not Available
+                          Gut Health Protocol Not Available
                         </h1>
                         <p className="text-lg text-gray-600 mb-2">
-                          {selectedDog.name} doesn't have a health protocol yet
+                          {selectedDog.name} doesn't have a gut health protocol yet
                         </p>
                         <p className="text-gray-600 mb-8">
                           Complete a health assessment to generate a
-                          personalized protocol
+                          personalized gut health protocol
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                           <button
