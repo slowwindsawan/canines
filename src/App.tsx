@@ -31,6 +31,7 @@ import AIChatbot from "./components/AIChatbot";
 import { MessageProvider } from "./context/MessageContext";
 import Messages from "./pages/admin/Messages";
 import Settings from "./pages/admin/Settings";
+import ProtocolEditor from "./pages/ProtocolEditor";
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -88,6 +89,16 @@ function App() {
                   <AdminRoute>
                     <AdminLayout>
                       <SubmissionsList />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/protocol-editor/:id"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <ProtocolEditor />
                     </AdminLayout>
                   </AdminRoute>
                 }

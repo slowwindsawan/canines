@@ -9,6 +9,16 @@ import { useAdmin } from "../context/AdminContext";
 import { mockProgressData, mockProtocols } from "../data/mockData";
 import paws from "../assets/paws.png";
 import foodIcon from "../assets/pet-food.png";
+import healthIcon from "../assets/health.png"
+import energyIcon from "../assets/energy.png"
+import stoolIcon from "../assets/stool.png"
+import dogIcon from "../assets/dog.png"
+import dishIcon from "../assets/dish.png"
+import capsuleIcon from "../assets/capsule.png"
+import boneIcon from "../assets/bone.png"
+import reportIcon from "../assets/report.png"
+import heartIcon from "../assets/heart.png"
+
 import {
   ClipboardList,
   FileText,
@@ -38,6 +48,7 @@ import {
   ArrowRight,
   Circle,
   Lock,
+  Lightbulb,
 } from "lucide-react";
 import HealthUpdateForm from "../components/HealthUpdateForm";
 
@@ -67,7 +78,7 @@ const Dashboard: React.FC = () => {
   const [showProgressForm, setShowProgressForm] = React.useState(false);
   const [isSubmittingProgress, setIsSubmittingProgress] = React.useState(false);
   const [showHealthUpdateForm, setShowHealthUpdateForm] = React.useState(false);
-  const [expanded, setIsExpanded] = useState(true);
+  const [showBadgeSuccessPopup, setShowBadgeSuccessPopup]=useState(false)
 
   // Filter progress data for selected dog
   const dogProgressData = selectedDog
@@ -580,6 +591,85 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {showBadgeSuccessPopup ? (
+          <>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div
+                className="relative flex flex-col items-center justify-center p-8 rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden 
+    animate-[popIn_0.5s_ease-out_forwards] bg-white"
+              >
+                {/* Sun Glow BEHIND the card */}
+                <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                  <div className="w-[300px] h-[300px] rounded-full bg-gradient-to-br blur-3xl opacity-40 animate-pulse"></div>
+                </div>
+
+                {/* Looping Confetti */}
+                <div className="absolute inset-0 pointer-events-none animate-[confettiLoop_2s_linear_infinite]">
+                  <svg
+                    className="absolute w-full h-full opacity-40"
+                    viewBox="0 0 200 200"
+                  >
+                    <g fill="none" strokeWidth="4">
+                      <circle cx="50" cy="50" r="4" stroke="#fbbf24" />
+                      <circle cx="150" cy="50" r="4" stroke="#34d399" />
+                      <circle cx="50" cy="150" r="4" stroke="#60a5fa" />
+                      <circle cx="150" cy="150" r="4" stroke="#f87171" />
+                    </g>
+                  </svg>
+                </div>
+
+                {/* Badge Icon */}
+                <div className="relative z-10 bg-gradient-to-r from-amber-400 to-yellow-500 p-6 rounded-full shadow-lg animate-bounce">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-12 w-12 text-white"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M12 2l2.09 6.26h6.57l-5.33 3.87 2.04 6.3L12 14.77l-5.37 3.66 2.04-6.3-5.33-3.87h6.57L12 2z" />
+                  </svg>
+                </div>
+
+                {/* Text */}
+                <h2 className="mt-6 text-2xl font-bold text-gray-800 relative z-10">
+                  Badge Unlocked!
+                </h2>
+                <p className="text-sm text-gray-600 mt-1 relative z-10">
+                  You’ve earned the “Pet Care Pro” badge 🎉
+                </p>
+
+                {/* CTA */}
+                <button className="mt-6 px-5 py-2 bg-brand-midgrey text-white rounded-lg text-sm font-medium shadow relative z-10" onClick={()=>setShowBadgeSuccessPopup(false)}>
+                  View Badges
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <></>
+        )}
+
+        <div className="w-full rounded-xl bg-gradient-to-r bg-brand-offwhite border border-white p-3 sm:p-4 md:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-yellow-500 grid place-items-center font-semibold text-xs sm:text-sm border shadow-lg">
+              <Lightbulb className="text-black" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-xs uppercase tracking-wide black">
+                Daily Gut Tip · Lauren
+              </div>
+              <p className="text-sm sm:text-base text-brand-midgrey break-words">
+                Hydration boosts energy—add a splash of bone broth to water
+                today.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-emerald-800/70">
+            <span className="inline-block h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-brand-charcoal" />
+            <span>Aug 13, 2025</span>
+          </div>
+        </div>
+
         {selectedDog && (
           <>
             {/* Tab Navigation */}
@@ -624,10 +714,10 @@ const Dashboard: React.FC = () => {
 
                     {/* Popover */}
                     <div
-                      className="absolute top-full left-1 -translate-x-1/2 mt-2 bg-white shadow-lg rounded-lg border border-gray-200 p-4 text-sm z-50 w-80 
-    opacity-0 scale-95 invisible 
-    group-hover:opacity-100 group-hover:scale-100 group-hover:visible 
-    transition-all duration-300 ease-out origin-top"
+                      className="absolute top-full -left-60 bg-white shadow-lg rounded-lg border border-gray-200 p-4 text-sm z-50 w-80 
+  opacity-0 scale-95 invisible 
+  group-hover:opacity-100 group-hover:scale-100 group-hover:visible 
+  transition-all duration-300 ease-out origin-top"
                     >
                       <h3 className="font-semibold text-gray-800 mb-3">
                         Compare plans and features
@@ -688,37 +778,6 @@ const Dashboard: React.FC = () => {
                 </nav>
               </div>
 
-              {/* Phase banner */}
-              <div className="flex items-center justify-center my-4 w-full bg-white py-3 px-8">
-                {/* Step 1: Past */}
-                <div className="flex items-center">
-                  <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-charcoal text-white text-xs font-bold">
-                    ✓
-                  </div>
-                  <span className="ml-2 text-gray-600">Reset</span>
-                </div>
-                <div className="mx-4 h-0.5 w-8 bg-brand-charcoal"></div>
-
-                {/* Step 2: Current */}
-                <div className="flex items-center">
-                  <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-midgrey text-white text-xs font-bold">
-                    2
-                  </div>
-                  <span className="ml-2 font-bold text-brand-midgrey">
-                    Rebuild
-                  </span>
-                </div>
-                <div className="mx-4 h-0.5 w-8 bg-gray-300"></div>
-
-                {/* Step 3: Future */}
-                <div className="flex items-center">
-                  <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-300 text-gray-500 text-xs font-bold">
-                    3
-                  </div>
-                  <span className="ml-2 text-gray-400">Strengthen</span>
-                </div>
-              </div>
-
               {/* Tab Content */}
               <div className="p-6">
                 {/* Overview Tab */}
@@ -727,7 +786,7 @@ const Dashboard: React.FC = () => {
                     {/* Today's Meal Plan */}
                     <div>
                       <div className="flex items-center space-x-2 mb-6">
-                        <img src={foodIcon} style={{ height: "52px" }} />
+                        <img src={dishIcon} style={{ height: "52px" }} />
                         <h2 className="text-xl font-bold text-gray-900 ">
                           Today's Meal Plan
                         </h2>
@@ -796,7 +855,7 @@ const Dashboard: React.FC = () => {
                       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div className="text-center">
                           <div className="flex justify-center mb-4">
-                            <Heart className="h-12 w-12 text-pink-600" />
+                            <img src={dogIcon} className="w-[160px] h-auto" />
                           </div>
                           <h2 className="text-xl font-bold text-gray-900 mb-2">
                             How's {selectedDog.name} doing today?
@@ -825,7 +884,7 @@ const Dashboard: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="text-center">
                           <div className="w-16 h-16 bg-brand-offwhite rounded-full flex items-center justify-center mx-auto mb-2">
-                            <CheckCircle className="h-8 w-8 text-brand-charcoal" />
+                            <img src={stoolIcon} />
                           </div>
                           <h4 className="font-medium text-gray-900">
                             Stool Quality
@@ -835,7 +894,7 @@ const Dashboard: React.FC = () => {
 
                         <div className="text-center">
                           <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                            <AlertCircle className="h-8 w-8 text-yellow-600" />
+                            <img src={energyIcon} />
                           </div>
                           <h4 className="font-medium text-gray-900">
                             Energy Level
@@ -845,7 +904,7 @@ const Dashboard: React.FC = () => {
 
                         <div className="text-center">
                           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                            <Activity className="h-8 w-8 text-blue-600" />
+                          <img src={healthIcon} />
                           </div>
                           <h4 className="font-medium text-gray-900">
                             Overall Health
@@ -1031,7 +1090,7 @@ const Dashboard: React.FC = () => {
                             >
                               <div className="flex items-start space-x-4">
                                 <button
-                                  onClick={() => toggleStepCompletion(step.id)}
+                                  onClick={() => {toggleStepCompletion(step.id);!step.completed?setShowBadgeSuccessPopup(true):null}}
                                   className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                                     step.completed
                                       ? "bg-green-600 border-green-600 text-white"
@@ -1123,8 +1182,8 @@ const Dashboard: React.FC = () => {
                             <p className="text-sm text-green-800">
                               <strong>Excellent work!</strong> You've completed
                               all current action items for {selectedDog.name}.
-                              New steps will appear as you progress through the gut health
-                              protocol.
+                              New steps will appear as you progress through the
+                              gut health protocol.
                             </p>
                           </div>
                         </div>
@@ -1410,10 +1469,45 @@ const Dashboard: React.FC = () => {
                           {/* Meal Plan */}
                           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <div className="flex items-center space-x-2 mb-6">
-                              <Clock className="h-6 w-6 text-brand-charcoal" />
+                              <img src={boneIcon} className="w-10"/>
                               <h2 className="text-xl font-bold text-gray-900 ">
                                 Daily Meal Plan
                               </h2>
+                            </div>
+
+                            {/* Phase banner */}
+                            <div className="flex items-center my-4 w-full bg-white py-3 px-8">
+                              {/* Step 1: Past */}
+                              <div className="flex items-center">
+                                <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-charcoal text-white text-xs font-bold">
+                                  ✓
+                                </div>
+                                <span className="ml-2 text-gray-600">
+                                  Reset
+                                </span>
+                              </div>
+                              <div className="mx-4 h-0.5 w-8 bg-brand-charcoal"></div>
+
+                              {/* Step 2: Current */}
+                              <div className="flex items-center">
+                                <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-midgrey text-white text-xs font-bold">
+                                  2
+                                </div>
+                                <span className="ml-2 font-bold text-brand-midgrey">
+                                  Rebuild
+                                </span>
+                              </div>
+                              <div className="mx-4 h-0.5 w-8 bg-gray-300"></div>
+
+                              {/* Step 3: Future */}
+                              <div className="flex items-center">
+                                <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-300 text-gray-500 text-xs font-bold">
+                                  3
+                                </div>
+                                <span className="ml-2 text-gray-400">
+                                  Strengthen
+                                </span>
+                              </div>
                             </div>
 
                             <div className="space-y-6">
@@ -1453,7 +1547,7 @@ const Dashboard: React.FC = () => {
                           {/* Supplements */}
                           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <div className="flex items-center space-x-2 mb-6">
-                              <Pill className="h-6 w-6 text-brand-charcoal" />
+                              <img src={capsuleIcon} className="w-10"/>
                               <h2 className="text-xl font-bold text-gray-900">
                                 Supplement Protocol
                               </h2>
@@ -1490,7 +1584,7 @@ const Dashboard: React.FC = () => {
                         {/* Lifestyle Tips */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                           <div className="flex items-center space-x-2 mb-6">
-                            <Heart className="h-6 w-6 text-brand-midgrey" />
+                            <img src={heartIcon} style={{height:"34px"}}/>
                             <h2 className="text-xl font-bold text-gray-900">
                               Lifestyle Recommendations
                             </h2>
@@ -1578,13 +1672,14 @@ const Dashboard: React.FC = () => {
                     ) : (
                       <div className="text-center py-16">
                         <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                          <Heart className="h-10 w-10 text-orange-600" />
+                          <img src={heartIcon} style={{height:"34px"}}/>
                         </div>
                         <h1 className="text-3xl font-bold text-gray-900 mb-4 ">
                           Gut Health Protocol Not Available
                         </h1>
                         <p className="text-lg text-gray-600 mb-2">
-                          {selectedDog.name} doesn't have a gut health protocol yet
+                          {selectedDog.name} doesn't have a gut health protocol
+                          yet
                         </p>
                         <p className="text-gray-600 mb-8">
                           Complete a health assessment to generate a

@@ -10,7 +10,9 @@ import {
   CheckCircle, 
   XCircle,
   User,
-  Calendar
+  Calendar,
+  Pencil,
+  Eye
 } from 'lucide-react';
 
 const SubmissionsList: React.FC = () => {
@@ -256,9 +258,15 @@ const SubmissionsList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Link
                         to={`/admin/submissions/${submission.id}`}
-                        className="text-emerald-600 hover:text-emerald-900 transition-colors"
+                        className="text-emerald-600 hover:text-emerald-900 transition-colors flex items-center"
                       >
-                        Review
+                        <Eye size={12} className='mr-2'/>Review
+                      </Link>&nbsp;<br/>
+                      <Link
+                        to={`/admin/protocol-editor/${submission.id}`}
+                        className="text-blue-600 hover:text-blue-900 transition-colors flex items-center"
+                      >
+                        <Pencil size={12} className='mr-2'/>Edit protocols
                       </Link>
                     </td>
                   </tr>

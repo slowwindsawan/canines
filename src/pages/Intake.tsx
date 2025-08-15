@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useDog } from "../context/DogContext";
 import { Heart, ArrowRight } from "lucide-react";
+import heartIcon from "../assets/heart.png"
 
 const intakeSchema = z.object({
   name: z.string().min(2, "Please enter your dog's name"),
@@ -189,7 +190,7 @@ const Intake: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <Heart className="h-12 w-12 text-emerald-600" />
+            <img src={heartIcon} style={{height:"84px"}}/>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Tell Us About Your Dog
@@ -352,8 +353,8 @@ const Intake: React.FC = () => {
                       {...register("weightUnit")}
                       className="px-3 py-3 border border-l-0 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
                     >
-                      <option value="kg">kg</option>
                       <option value="lb">lb</option>
+                      <option value="kg">kg</option>
                     </select>
                   </div>
 
