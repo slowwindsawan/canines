@@ -95,9 +95,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    await localStorage.removeItem("jwt_token")
+    window.location.href="/login"
   };
 
   const updateProfile = async (updates: Partial<User>): Promise<void> => {

@@ -8,11 +8,16 @@ import {
 import { AuthProvider } from "./context/AuthContext";
 import { DogProvider } from "./context/DogContext";
 import { AdminProvider } from "./context/AdminContext";
+import { MessageProvider } from "./context/MessageContext";
+
 import Navbar from "./components/Navbar";
 import AdminNavbar from "./components/AdminNavbar";
 import Footer from "./components/Footer";
-import ProtectedRoute from "./components/ProtectedRoute";
-import AdminRoute from "./components/AdminRoute";
+import AIChatbot from "./components/AIChatbot";
+
+import ProtectedRoute from "./ProtectedRoute";
+import AdminRoute from "./AdminRoute";
+
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
@@ -27,12 +32,12 @@ import SubmissionsList from "./pages/admin/SubmissionsList";
 import SubmissionReview from "./pages/admin/SubmissionReview";
 import NotificationsPanel from "./pages/admin/NotificationsPanel";
 import AuditLogs from "./pages/admin/AuditLogs";
-import AIChatbot from "./components/AIChatbot";
-import { MessageProvider } from "./context/MessageContext";
 import Messages from "./pages/admin/Messages";
 import Settings from "./pages/admin/Settings";
 import ProtocolEditor from "./pages/ProtocolEditor";
+import PublicRoute from "./PublicRoute";
 
+// Layouts
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="min-h-screen bg-gray-50 flex flex-col">
     <AdminNavbar />
@@ -51,16 +56,30 @@ const UserLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </DogProvider>
 );
 
-function App() {
+const App: React.FC = () => {
   return (
     <AuthProvider>
       <AdminProvider>
         <MessageProvider>
           <Router>
             <Routes>
-              {/* Auth Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
+              {/* Public Routes */}
+              <Route
+                path="/login"
+                element={
+                  <PublicRoute>
+                    <Login />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/signup"
+                element={
+                  <PublicRoute>
+                    <Signup />
+                  </PublicRoute>
+                }
+              />
 
               {/* Admin Routes */}
               <Route
@@ -195,7 +214,6 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-
               <Route
                 path="/subscription"
                 element={
@@ -207,13 +225,16 @@ function App() {
                 }
               />
 
+              {/* Redirect root to dashboard */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              {/* Optional: catch-all redirect */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Router>
         </MessageProvider>
       </AdminProvider>
     </AuthProvider>
   );
-}
+};
 
 export default App;

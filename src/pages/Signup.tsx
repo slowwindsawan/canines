@@ -3,13 +3,17 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Heart } from 'lucide-react';
+import { Heart, CheckCircle2, XCircle } from 'lucide-react';
+import { publicRequest } from '../env';  // ✅ use helper
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+    .regex(/[0-9]/, 'Must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -19,25 +23,52 @@ const signupSchema = z.object({
 type SignupFormData = z.infer<typeof signupSchema>;
 
 const Signup: React.FC = () => {
-  const { signup, isLoading } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = React.useState<string>('');
+  const [status, setStatus] = React.useState<string>(''); // ✅ signup status
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid, isSubmitting },
+    watch,
   } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
+    mode: "onChange", // ✅ enables real-time validation
   });
+
+  const password = watch("password") || "";
+
+  const passwordChecks = [
+    { label: "At least 8 characters", test: password.length >= 8 },
+    { label: "One uppercase letter", test: /[A-Z]/.test(password) },
+    { label: "One number", test: /[0-9]/.test(password) },
+    { label: "One special character", test: /[^A-Za-z0-9]/.test(password) },
+  ];
 
   const onSubmit = async (data: SignupFormData) => {
     try {
       setError('');
-      await signup(data.name, data.email, data.password);
-      navigate('/dashboard', { replace: true });
-    } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setStatus('Creating account...');
+
+      const result = await publicRequest("/auth/signup", "POST", {
+        username: data.name,
+        email: data.email,
+        password: data.password,
+      });
+
+      console.log(result)
+
+      if (result.success) {
+        setStatus("Signup successful! Redirecting...");
+        setTimeout(() => navigate('/login'), 1500);
+      } else {
+        setError(result.message || "Signup failed");
+        setStatus('');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Something went wrong. Please try again.");
+      setStatus('');
     }
   };
 
@@ -48,7 +79,9 @@ const Signup: React.FC = () => {
           <div className="flex justify-center">
             <Heart className="h-12 w-12 text-dark-900" />
           </div>
-          <h2 className="mt-4 text-2xl sm:text-3xl font-bold text-dark-900">Join The Canine Nutritionist</h2>
+          <h2 className="mt-4 text-2xl sm:text-3xl font-bold text-dark-900">
+            Join The Canine Nutritionist
+          </h2>
           <p className="mt-2 text-sm sm:text-base text-dark-700">
             Start your dog's personalized health journey today
           </p>
@@ -56,84 +89,99 @@ const Signup: React.FC = () => {
         
         <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+            
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
-            
+            {status && (
+              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
+                {status}
+              </div>
+            )}
+
+            {/* Name */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-dark-800 mb-2">
+              <label className="block text-sm font-medium text-dark-800 mb-2">
                 Full Name
               </label>
               <input
                 {...register('name')}
                 type="text"
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-primary-400 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors text-sm sm:text-base"
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary-600"
                 placeholder="Enter your full name"
               />
-              {errors.name && (
-                <p className="mt-2 text-sm text-red-700">{errors.name.message}</p>
-              )}
+              {errors.name && <p className="mt-2 text-sm text-red-700">{errors.name.message}</p>}
             </div>
 
+            {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-dark-800 mb-2">
+              <label className="block text-sm font-medium text-dark-800 mb-2">
                 Email Address
               </label>
               <input
                 {...register('email')}
                 type="email"
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-primary-400 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors text-sm sm:text-base"
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary-600"
                 placeholder="Enter your email"
               />
-              {errors.email && (
-                <p className="mt-2 text-sm text-red-700">{errors.email.message}</p>
-              )}
+              {errors.email && <p className="mt-2 text-sm text-red-700">{errors.email.message}</p>}
             </div>
 
+            {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-dark-800 mb-2">
+              <label className="block text-sm font-medium text-dark-800 mb-2">
                 Password
               </label>
               <input
                 {...register('password')}
                 type="password"
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-primary-400 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors text-sm sm:text-base"
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary-600"
                 placeholder="Choose a strong password"
               />
-              {errors.password && (
-                <p className="mt-2 text-sm text-red-700">{errors.password.message}</p>
-              )}
+              {/* Live password guide */}
+              <ul className="mt-2 space-y-1 text-sm">
+                {passwordChecks.map((check, idx) => (
+                  <li key={idx} className={`flex items-center gap-2 ${check.test ? "text-green-600" : "text-gray-500"}`}>
+                    {check.test ? <CheckCircle2 size={16}/> : <XCircle size={16}/>}
+                    {check.label}
+                  </li>
+                ))}
+              </ul>
+              {errors.password && <p className="mt-2 text-sm text-red-700">{errors.password.message}</p>}
             </div>
 
+            {/* Confirm Password */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-dark-800 mb-2">
+              <label className="block text-sm font-medium text-dark-800 mb-2">
                 Confirm Password
               </label>
               <input
                 {...register('confirmPassword')}
                 type="password"
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-primary-400 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-primary-600 transition-colors text-sm sm:text-base"
+                className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary-600"
                 placeholder="Confirm your password"
               />
-              {errors.confirmPassword && (
-                <p className="mt-2 text-sm text-red-700">{errors.confirmPassword.message}</p>
-              )}
+              {errors.confirmPassword && <p className="mt-2 text-sm text-red-700">{errors.confirmPassword.message}</p>}
             </div>
 
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-primary-600 to-primary-800 text-dark-900 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:from-primary-500 hover:to-primary-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-sm sm:text-base"
+              disabled={!isValid || isSubmitting}
+              className={`w-full px-6 py-3 rounded-lg font-medium transition-all duration-200 
+                ${!isValid || isSubmitting 
+                  ? "bg-gray-300 cursor-not-allowed text-gray-600" 
+                  : "bg-gradient-to-r from-primary-600 to-primary-800 text-dark-900 hover:from-primary-500 hover:to-primary-700 transform hover:scale-[1.02]"
+                }`}
             >
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              {isSubmitting ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-dark-700">
-              Already have an account?{' '}
+              Already have an account?{" "}
               <Link to="/login" className="text-dark-800 hover:text-dark-900 font-medium">
                 Sign in here
               </Link>
