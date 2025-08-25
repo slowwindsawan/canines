@@ -13,9 +13,9 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   // Example: check if user is admin
   const isAdmin = localStorage.getItem("is_admin") === "true"; // or decode token
 
-  if (!token || !isAdmin) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
+  // if (!token || !isAdmin) {
+  //   return <Navigate to="/login" state={{ from: location }} replace />;
+  // }
 
   return <>{children}</>;
 };

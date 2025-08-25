@@ -333,3 +333,9 @@ class DogProgressEntry(Base):
     __table_args__ = (
         Index("ix_progress_dog_metric_time", "dog_id", "metric_id", "measured_at"),
     )
+
+class OnboardingForm(Base):
+    __tablename__ = "onboarding_form"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    json_data = Column(JSON, nullable=True)    # default empty array

@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Any
 from uuid import UUID
 
 class UserCreate(BaseModel):
@@ -20,3 +21,13 @@ class UserOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class OnboardingFormPayload(BaseModel):
+    json_data: Any  # Can be dict or list
+
+class OnboardingFormResponse(BaseModel):
+    success: bool
+    form: Any  # Will return dict or list
+
+    class Config:
+        orm_mode = True

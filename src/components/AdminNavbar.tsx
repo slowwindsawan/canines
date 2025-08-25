@@ -54,17 +54,6 @@ const AdminNavbar: React.FC = () => {
                     )}
                   </Link>
                 ))}
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-600">
-                    {adminUser.name} ({adminUser.role})
-                  </span>
-                  <Link
-                    to="/dashboard"
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    User View
-                  </Link>
-                </div>
               </>
             )}
           </div>

@@ -1,8 +1,8 @@
-"""additonal tables
+"""added onboarding form.
 
-Revision ID: d0172a594817
+Revision ID: ea594c36e756
 Revises: 
-Create Date: 2025-08-22 16:42:26.354416
+Create Date: 2025-08-25 15:07:18.863182
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd0172a594817'
+revision: str = 'ea594c36e756'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -33,6 +33,11 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_badges_id'), 'badges', ['id'], unique=True)
     op.create_index(op.f('ix_badges_slug'), 'badges', ['slug'], unique=True)
+    op.create_table('onboarding_form',
+    sa.Column('id', sa.String(length=36), nullable=False),
+    sa.Column('json_data', sa.JSON(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('progress_metrics',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('key', sa.String(length=80), nullable=False),
@@ -279,6 +284,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_progress_metrics_key'), table_name='progress_metrics')
     op.drop_index(op.f('ix_progress_metrics_id'), table_name='progress_metrics')
     op.drop_table('progress_metrics')
+    op.drop_table('onboarding_form')
     op.drop_index(op.f('ix_badges_slug'), table_name='badges')
     op.drop_index(op.f('ix_badges_id'), table_name='badges')
     op.drop_table('badges')

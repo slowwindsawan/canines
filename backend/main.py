@@ -1,16 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import jwt
 from app.auth_config import SECRET_KEY, ALGORITHM
-from routes import auth
+from routes import auth, formbuilder
 from app import models
 import uvicorn
-from sqlalchemy.orm import Session
 from app.dependecies import get_current_user
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 app.include_router(auth.router)
+app.include_router(formbuilder.router)
 
 # Add CORS middleware
 app.add_middleware(
