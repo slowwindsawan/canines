@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,6 +51,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import HealthUpdateForm from "../components/HealthUpdateForm";
+import { jwtRequest } from "../env";
 
 const progressSchema = z.object({
   symptoms: z.array(z.string()),
@@ -63,8 +64,6 @@ type ProgressFormData = z.infer<typeof progressSchema>;
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const {
-    dogs,
-    selectedDog,
     selectDog,
     getProtocolHistory,
     getLastDiagnosisSubmission,
@@ -79,6 +78,20 @@ const Dashboard: React.FC = () => {
   const [isSubmittingProgress, setIsSubmittingProgress] = React.useState(false);
   const [showHealthUpdateForm, setShowHealthUpdateForm] = React.useState(false);
   const [showBadgeSuccessPopup, setShowBadgeSuccessPopup]=useState(false)
+  console.log(user)
+  const [dogs, setDogs]=useState([])
+  const [selectedDog, setSelectedDog]=useState(null)
+
+  useEffect(()=>{
+    setDogs(user?.dogs)
+  },[user])
+
+  useEffect(()=>{
+    if(dogs){
+      setSelectedDog(dogs[0] || null);
+    }
+  },[dogs])
+
 
   // Filter progress data for selected dog
   const dogProgressData = selectedDog
@@ -208,25 +221,6 @@ const Dashboard: React.FC = () => {
     if (value >= 40) return "bg-orange-500";
     return "bg-red-500";
   };
-
-  const quickActions = [
-    {
-      title: "Symptom Assessment",
-      description: "AI-powered health evaluation",
-      icon: ClipboardList,
-      href: "/intake",
-      gradient: "from-blue-600 to-purple-600",
-      disabled: false,
-    },
-    {
-      title: "Education Hub",
-      description: "Expert health resources",
-      icon: BookOpen,
-      href: "/education",
-      gradient: "from-teal-600 to-green-600",
-      disabled: false,
-    },
-  ];
 
   const symptomOptions = [
     { id: "loose_stool", label: "Loose stool" },
@@ -450,11 +444,10 @@ const Dashboard: React.FC = () => {
             <div className="flex flex-col items-start lg:items-end">
               <div className="flex items-center space-x-2 mb-2">
                 <Award className="h-5 w-5 text-blue-200" />
-                <span className="text-sm text-blue-200">Foundation</span>
+                <span className="text-sm text-blue-200">Your Active Plan</span>
               </div>
               <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
-                {user?.membershipTier?.charAt(0).toUpperCase() +
-                  user?.membershipTier?.slice(1) || "Starter"}
+                {user?.subscription_tier||"Unknown"}
               </span>
             </div>
           </div>
@@ -519,6 +512,7 @@ const Dashboard: React.FC = () => {
                                   onClick={() => {
                                     selectDog(dog.id);
                                     setShowDogSelector(false);
+                                    setSelectedDog(dog)
                                   }}
                                   className={`w-full flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg text-left transition-colors ${
                                     selectedDog?.id === dog.id
@@ -840,7 +834,7 @@ const Dashboard: React.FC = () => {
                             meal plan for {selectedDog.name}
                           </p>
                           <Link
-                            to="/intake"
+                            to={"/intake?id="+selectedDog?.id}
                             className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
                           >
                             <Plus className="h-4 w-4" />

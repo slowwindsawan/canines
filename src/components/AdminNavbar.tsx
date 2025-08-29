@@ -13,8 +13,8 @@ const AdminNavbar: React.FC = () => {
     { name: 'Dashboard', href: '/admin' },
     { name: 'Submissions', href: '/admin/submissions' },
     { name: 'Messages', href: '/admin/messages' },
-    { name: 'Notifications', href: '/admin/notifications' },
-    { name: 'Audit Logs', href: '/admin/audit' },
+    // { name: 'Notifications', href: '/admin/notifications' },
+    // { name: 'Audit Logs', href: '/admin/audit' },
     { name: 'Settings', href: '/admin/settings' },
   ];
 

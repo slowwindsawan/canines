@@ -1,187 +1,609 @@
-import React from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useDog } from "../context/DogContext";
-import { Heart, ArrowRight } from "lucide-react";
-import heartIcon from "../assets/heart.png"
+import { ArrowRight } from "lucide-react";
+import heartIcon from "../assets/heart.png";
+import { jwtRequest } from "../env";
+import { set } from "zod";
 
-const intakeSchema = z.object({
-  name: z.string().min(2, "Please enter your dog's name"),
-  breed: z.string().min(2, "Please enter your dog's breed"),
-  age: z
-    .number()
-    .min(0.5, "Age must be at least 6 months")
-    .max(25, "Age must be realistic"),
-  weight: z
-    .number()
-    .min(1, "Weight must be at least 1 lb")
-    .max(300, "Weight must be realistic"),
-  dateOfBirth: z.string().optional(),
-  sex: z.enum(["male", "female"], {
-    errorMap: () => ({ message: "Please select sex" }),
-  }),
-  neuterStatus: z.enum(["intact", "neutered", "spayed"], {
-    errorMap: () => ({ message: "Please select neuter status" }),
-  }),
-  bodyCondition: z.enum(["underweight", "ideal", "overweight"], {
-    errorMap: () => ({ message: "Please select body condition" }),
-  }),
+/**
+ * Note: the zod schema you had is kept elsewhere if you need strict validation.
+ * This component works with dynamic form fields returned from the server,
+ * and guarantees presence of a set of required fields before submit.
+ */
 
-  // Current Diet Details
-  primaryFoodType: z.enum(["dry", "wet", "raw", "cooked", "mixed"], {
-    errorMap: () => ({ message: "Please select primary food type" }),
-  }),
-  brandAndProduct: z.string().optional(),
-  treatsAndExtras: z.string().optional(),
-  feedingSchedule: z.enum(["once", "twice", "grazing", "other"], {
-    errorMap: () => ({ message: "Please select feeding schedule" }),
-  }),
-  accessToOtherFoods: z.string().optional(),
-  currentSupplements: z.string().optional(),
-  waterSource: z.enum(["tap", "filtered", "tank", "bore", "other"], {
-    errorMap: () => ({ message: "Please select water source" }),
-  }),
+type DynamicField = {
+  id?: string | number;
+  name: string;
+  label?: string;
+  description?: string;
+  type?: string;
+  required?: boolean;
+  value?: any;
+  placeholder?: string;
+  options?: any[];
+  errorText?: string;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  aiText?: string;
+};
 
-  // Medical & Health History
-  currentMedications: z.string().optional(),
-  pastMedications: z.string().optional(),
-  vaccinationHistory: z.string().optional(),
-  fleaTickWormingProducts: z.string().optional(),
-  surgeriesOrInjuries: z.string().optional(),
-  diagnosedConditions: z.string().optional(),
-  pastLabResults: z.string().optional(),
-
-  // Environment & Lifestyle
-  livingEnvironment: z.enum(["urban", "suburban", "rural", "farm"], {
-    errorMap: () => ({ message: "Please select living environment" }),
-  }),
-  climate: z.enum(["hot", "humid", "cold", "dry", "temperate"], {
-    errorMap: () => ({ message: "Please select climate" }),
-  }),
-  activityLevel: z.enum(["working", "sports", "daily_walks", "low_activity"], {
-    errorMap: () => ({ message: "Please select activity level" }),
-  }),
-  accessToGrassDirt: z.boolean(),
-  stressFactors: z.string().optional(),
-
-  // Owner Goals & Priorities
-  mainHealthConcern: z.string().optional(),
-  secondaryConcerns: z.string().optional(),
-  priorityOutcome: z.string().optional(),
-  timeAndBudgetLevel: z.enum(["low", "medium", "high"], {
-    errorMap: () => ({ message: "Please select time and budget level" }),
-  }),
-
-  // Existing fields
-  stoolType: z.enum(["normal", "loose", "watery", "hard", "mucousy"], {
-    errorMap: () => ({ message: "Please select a stool type" }),
-  }),
-  symptoms: z.array(z.string()).min(0),
-  behaviorNotes: z.string().max(500, "Notes must be under 500 characters"),
-});
-
-type IntakeFormData = z.infer<typeof intakeSchema>;
+const requiredFieldTemplates: DynamicField[] = [
+  {
+    name: "name",
+    label: "Dog's Name",
+    type: "text",
+    required: true,
+    placeholder: "Enter your dog's name",
+    value: "",
+  },
+  {
+    name: "breed",
+    label: "Breed",
+    type: "text",
+    required: true,
+    placeholder: "e.g. Labrador",
+    value: "",
+  },
+  {
+    name: "age",
+    label: "Age (years)",
+    type: "number",
+    required: true,
+    placeholder: "e.g. 3",
+    value: "",
+    min: 0,
+    max: 25,
+  },
+  {
+    name: "weight",
+    label: "Weight (kg)",
+    type: "number",
+    required: true,
+    placeholder: "e.g. 12.5",
+    value: "",
+    min: 0,
+    max: 300,
+  },
+  {
+    name: "stoolType",
+    label: "Stool Type",
+    type: "select",
+    required: true,
+    options: [
+      { value: "normal", label: "Normal" },
+      { value: "loose", label: "Loose" },
+      { value: "watery", label: "Watery" },
+      { value: "hard", label: "Hard" },
+      { value: "mucousy", label: "Mucousy" },
+    ],
+    placeholder: "Select stool type",
+    value: "",
+  },
+  {
+    name: "symptoms",
+    label: "Symptoms",
+    type: "checkbox",
+    required: true,
+    // default to an empty array (multiple choice)
+    options: [
+      { value: "vomiting", label: "Vomiting" },
+      { value: "diarrhea", label: "Diarrhea" },
+      { value: "lethargy", label: "Lethargy" },
+      { value: "itching", label: "Itching" },
+      { value: "none", label: "None" },
+    ],
+    value: [],
+  },
+  {
+    name: "behaviorNotes",
+    label: "Behavior Notes",
+    type: "textarea",
+    required: true,
+    placeholder: "Anything we should know about behaviour (up to 500 chars)",
+    value: "",
+    maxLength: 500,
+  },
+];
 
 const Intake: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addDog } = useDog();
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const location = useLocation();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
-  } = useForm<IntakeFormData>({
-    resolver: zodResolver(intakeSchema),
-    defaultValues: {
-      symptoms: [],
-      behaviorNotes: "",
-    },
-  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingForm, setFormLoading] = useState(false);
+  const [formFields, setFormFields] = useState<DynamicField[]>([]);
+  const [searchParams] = useSearchParams();
+  const [id, setId] = useState(null);
 
-  const watchedSymptoms = watch("symptoms");
+  useEffect(() => {
+    setId(searchParams.get("id"));
+  }, []);
 
-  const symptomOptions = [
-    // Digestion
-    { id: "loose_stool", label: "Loose stool" },
-    { id: "diarrhea", label: "Diarrhea" },
-    { id: "constipation", label: "Constipation" },
-    { id: "vomiting", label: "Vomiting" },
-    { id: "excessive_gas", label: "Excessive gas" },
-    { id: "bloating", label: "Bloating" },
-    { id: "scooting", label: "Scooting/Anal gland issues" },
+  // Helper: find a field by name
+  function getFieldByName(name: string) {
+    return formFields.find((f) => f.name === name);
+  }
 
-    // Skin & Coat
-    { id: "skin_issues", label: "Skin issues/Itching" },
-    { id: "hot_spots", label: "Hot spots" },
-    { id: "yeast_smell", label: "Yeasty smell/Greasy coat" },
-    { id: "hair_loss", label: "Hair loss/Thinning" },
-    { id: "paw_licking", label: "Paw licking/Redness" },
+  // Return typed value or fallback sensible default
+  function getFieldValueByName(name: string) {
+    const field = getFieldByName(name);
+    if (!field) {
+      // fallback to defaults from templates if missing entirely
+      const tpl = requiredFieldTemplates.find((t) => t.name === name);
+      return tpl ? tpl.value : null;
+    }
+    // If checkbox with options -> should be an array
+    if (field.type === "checkbox" && Array.isArray(field.options)) {
+      return Array.isArray(field.value) ? field.value : [];
+    }
+    // number fields
+    if (field.type === "number") {
+      // if empty string treat as 0
+      if (
+        field.value === "" ||
+        field.value === null ||
+        field.value === undefined
+      )
+        return 0;
+      // handle string numbers too
+      const n = Number(field.value);
+      return isNaN(n) ? 0 : n;
+    }
+    return field.value ?? "";
+  }
 
-    // Behavior & Mood
-    { id: "anxiety", label: "Anxiety/Nervousness" },
-    { id: "reactivity", label: "Reactivity/Aggression" },
-    { id: "hyperactivity", label: "Hyperactivity" },
-    { id: "lethargy", label: "Lethargy/Low energy" },
-    { id: "poor_sleep", label: "Poor sleep quality" },
+  function mergeWithRequiredFields(serverFields: DynamicField[]) {
+    const serverByName = new Map<string, DynamicField>();
+    (serverFields || []).forEach((f) => serverByName.set(f.name, f));
 
-    // Other
-    { id: "ear_infections", label: "Frequent ear infections" },
-    { id: "eye_discharge", label: "Eye discharge/Staining" },
-    { id: "bad_breath", label: "Bad breath" },
-    { id: "loss_appetite", label: "Loss of appetite" },
-    { id: "weight_loss", label: "Unexplained weight loss" },
-    { id: "muscle_wastage", label: "Muscle wastage" },
-  ];
+    // Start with required templates first (static fields)
+    const merged: DynamicField[] = requiredFieldTemplates.map((req) => {
+      const serverField = serverByName.get(req.name);
+      if (serverField) {
+        // Merge server-provided field into the required template.
+        // Server can override label/description/options/value etc.
+        const combined: DynamicField = { ...req, ...serverField };
+        // Ensure sensible defaults for value when missing
+        if (combined.value === undefined) combined.value = req.value;
+        if (req.type === "checkbox" && Array.isArray(req.options)) {
+          if (!Array.isArray(combined.value)) combined.value = [];
+        }
+        return combined;
+      } else {
+        // Not provided by server — use static template
+        return { ...req };
+      }
+    });
 
-  const stoolTypeOptions = [
-    { value: "normal", label: "Normal (firm, well-formed)" },
-    { value: "loose", label: "Loose (soft but formed)" },
-    { value: "watery", label: "Watery/Liquid" },
-    { value: "hard", label: "Hard/Dry" },
-    { value: "mucousy", label: "Contains mucus or blood" },
-  ];
+    // Append any server fields that are NOT part of requiredFieldTemplates
+    (serverFields || []).forEach((f) => {
+      const isRequired = requiredFieldTemplates.some((r) => r.name === f.name);
+      if (!isRequired) {
+        // Ensure value defaults are sane
+        const copy = { ...f };
+        if (copy.value === undefined) {
+          // default array checkboxes to [] if options exist
+          if (copy.type === "checkbox" && Array.isArray(copy.options))
+            copy.value = [];
+          else copy.value = "";
+        }
+        merged.push(copy);
+      }
+    });
 
-  const handleSymptomChange = (symptomId: string, checked: boolean) => {
-    const currentSymptoms = watchedSymptoms || [];
-    if (checked) {
-      setValue("symptoms", [...currentSymptoms, symptomId]);
-    } else {
-      setValue(
-        "symptoms",
-        currentSymptoms.filter((id) => id !== symptomId)
-      );
+    return merged;
+  }
+
+  const fetchDog = async () => {
+    setFormLoading(true);
+    try {
+      const data = await jwtRequest("/dogs/get/" + id, "POST");
+      if (data?.success) {
+        // get server-provided fields (if any) and merge with required templates
+        const serverFields =
+          data?.dog?.form_data?.fullFormFields &&
+          Array.isArray(data.dog.form_data.fullFormFields)
+            ? data.dog.form_data.fullFormFields
+            : [];
+
+        // Merge server fields into our required templates so required fields are always present
+        const merged = mergeWithRequiredFields(serverFields);
+
+        // Additionally, if there are existing formFields (from onboarding fetch),
+        // preserve any non-required fields that were fetched earlier but missing in serverFields.
+        // This keeps the latest structure while prioritizing server prefill.
+        // (If formFields is empty, merged already contains required templates.)
+        if (formFields.length > 0) {
+          // Build a map for existing non-required fields by name
+          const existingByName = new Map<string, DynamicField>();
+          formFields.forEach((f) => existingByName.set(f.name, f));
+          // Append any fields that exist in existing formFields but are not present in merged
+          const mergedNames = new Set(merged.map((m) => m.name));
+          existingByName.forEach((f, name) => {
+            if (!mergedNames.has(name)) {
+              merged.push({ ...f });
+            }
+          });
+        }
+
+        setFormFields(merged);
+      } else {
+        // no success: leave whatever formFields currently are (or templates)
+        console.warn(
+          "Dog fetch returned success=false, leaving current form fields."
+        );
+      }
+    } catch (error) {
+    } finally {
+      setFormLoading(false);
     }
   };
 
-  const onSubmit = async (data: IntakeFormData) => {
-    setIsSubmitting(true);
-    // Simulate API submission
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+  useEffect(() => {
+    const fetchForm = async () => {
+      setFormLoading(true);
+      try {
+        const response = await jwtRequest("/get-onboarding-form", "GET");
+        let merged: DynamicField[] = [];
+        if (response && Array.isArray(response.form)) {
+          merged = mergeWithRequiredFields(response.form);
+        } else {
+          merged = requiredFieldTemplates.map((t) => ({ ...t }));
+        }
+        setFormFields(merged);
 
-    // Add the new dog to the user's dogs list
-    if (user) {
-      const dogId = addDog({
-        name: data.name,
-        breed: data.breed,
-        age: data.age,
-        weight: data.weight,
-        stoolType: data.stoolType,
-        symptoms: data.symptoms,
-        behaviorNotes: data.behaviorNotes,
-      });
+        // 👉 Only fetch dog after form structure is ready
+        if (id) {
+          await fetchDog(merged);
+        }
+      } catch (err: any) {
+        setFormFields(requiredFieldTemplates.map((t) => ({ ...t })));
+      } finally {
+        setFormLoading(false);
+      }
+    };
 
-      // Navigate to protocol page - the newly added dog is automatically selected
-      navigate("/protocol");
+    fetchForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Check required fields for emptiness
+  const hasErrors = formFields.some((field) => {
+    if (!field.required) return false;
+    const val = field.value;
+    if (field.type === "checkbox" && Array.isArray(field.options)) {
+      return !Array.isArray(val) || val.length === 0;
+    }
+    if (field.type === "number") {
+      // treat empty or NaN as error
+      return (
+        val === "" || val === null || val === undefined || isNaN(Number(val))
+      );
+    }
+    return val === "" || val === null || val === undefined;
+  });
+
+  // generic field updater
+  const updateFieldAtIndex = (idx: number, newVal: any) => {
+    setFormFields((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], value: newVal };
+      return copy;
+    });
+  };
+
+  const handleUpdateDog = async () => {
+    if (!id) {
+      alert("No dog selected to update.");
+      return;
     }
 
-    setIsSubmitting(false);
+    try {
+      // Build payload from formFields
+      const payload = {
+        name: formFields.find((f) => f.name === "name")?.value || "Unknown",
+        breed: formFields.find((f) => f.name === "breed")?.value || "Unknown",
+        weight_kg:
+          Number(formFields.find((f) => f.name === "weight")?.value) ||
+          undefined,
+        notes:
+          formFields.find((f) => f.name === "behaviorNotes")?.value ||
+          undefined,
+        form_data: {
+          fullFormFields: formFields,
+          age: Number(formFields.find((f) => f.name === "age")?.value) || 0,
+          stoolType:
+            formFields.find((f) => f.name === "stoolType")?.value || "",
+          symptoms: formFields.find((f) => f.name === "symptoms")?.value || [],
+          behaviorNotes:
+            formFields.find((f) => f.name === "behaviorNotes")?.value || "",
+        },
+      };
+
+      // Call your FastAPI PUT endpoint
+      const response = await jwtRequest(`/dogs/update/${id}`, "PUT", payload);
+
+      if (response?.success) {
+        alert("Dog updated successfully!");
+        // Optionally navigate or refresh the data
+        navigate("/protocol"); // or wherever you want
+      } else {
+        alert(response?.message || "Failed to update dog.");
+      }
+    } catch (err) {
+      alert("An error occurred while updating the dog.");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (hasErrors) {
+      // extra guard
+      alert("Please fill all required fields.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // build dog payload using guaranteed fields
+      const dogPayload = {
+        name: String(getFieldValueByName("name") || "Unknown"),
+        breed: String(getFieldValueByName("breed") || "Unknown"),
+        age: Number(getFieldValueByName("age") || 0),
+        weight: Number(getFieldValueByName("weight") || 0),
+        stoolType: String(getFieldValueByName("stoolType") || "Unknown"),
+        symptoms: getFieldValueByName("symptoms") || [],
+        behaviorNotes: String(getFieldValueByName("behaviorNotes") || ""),
+      };
+
+      // You can replace this simulated delay with a real API call if needed
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      const apiPayload = {
+        name: dogPayload.name,
+        breed: dogPayload.breed,
+        weight_kg: dogPayload.weight > 0 ? dogPayload.weight : undefined,
+        notes: dogPayload.behaviorNotes || undefined,
+        form_data: {
+          age: dogPayload.age,
+          stoolType: dogPayload.stoolType,
+          symptoms: dogPayload.symptoms,
+          behaviorNotes: dogPayload.behaviorNotes,
+          fullFormFields: formFields,
+        },
+      };
+
+      // assume jwtRequest(path, method, body)
+      const response = await jwtRequest("/dogs/create-dog", "POST", apiPayload);
+
+      if (response && response.success) {
+        // success path
+        navigate("/protocol");
+        return;
+      }
+
+      // If backend returned success=false (some helpers do this)
+      const serverMsg = response?.message || response?.detail || "";
+      if (
+        serverMsg.toLowerCase().includes("already exists") ||
+        serverMsg.toLowerCase().includes("exists")
+      ) {
+        alert(
+          "A dog with that name already exists for your account. Please use a different name."
+        );
+      } else {
+        alert(serverMsg || "Failed to create dog. Please try again.");
+      }
+    } catch (err) {
+      alert("Failed to submit. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Render helpers (same as your original logic, adapted to typed state)
+  const renderInputForField = (field: DynamicField, idx: number) => {
+    const rawValue = field.value;
+    const value =
+      rawValue === null || rawValue === undefined
+        ? field.type === "checkbox" && Array.isArray(field.options)
+          ? []
+          : ""
+        : rawValue;
+
+    const isEmpty =
+      value === "" ||
+      value === null ||
+      value === undefined ||
+      (Array.isArray(value) && value.length === 0);
+    const hasError = Boolean(field.required && isEmpty);
+
+    const handlePrimitiveChange = (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >
+    ) => {
+      let newVal: any;
+      if (field.type === "checkbox" && !Array.isArray(field.options)) {
+        newVal = (e.target as HTMLInputElement).checked;
+      } else if (field.type === "number") {
+        newVal = e.target.value === "" ? "" : Number(e.target.value);
+      } else {
+        newVal = e.target.value;
+      }
+      updateFieldAtIndex(idx, newVal);
+    };
+
+    const handleCheckboxOptionChange = (optionValue: any, checked: boolean) => {
+      const arr = Array.isArray(value) ? [...value] : [];
+      const exists = arr.includes(optionValue);
+      if (checked && !exists) arr.push(optionValue);
+      if (!checked && exists) arr.splice(arr.indexOf(optionValue), 1);
+      updateFieldAtIndex(idx, arr);
+    };
+
+    // textarea
+    if (field.type === "textarea") {
+      return (
+        <textarea
+          rows={4}
+          value={value}
+          onChange={handlePrimitiveChange}
+          placeholder={field.placeholder ?? ""}
+          className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+            hasError ? "border-red-300" : "border-gray-300"
+          }`}
+        />
+      );
+    }
+
+    // select
+    if (field.type === "select" && Array.isArray(field.options)) {
+      return (
+        <select
+          value={value}
+          onChange={handlePrimitiveChange}
+          className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+            hasError ? "border-red-300" : "border-gray-300"
+          }`}
+        >
+          <option value="">{field.placeholder ?? "Select"}</option>
+          {field.options.map((opt: any, i: number) => {
+            const optVal = opt?.value ?? opt;
+            const optLabel = opt?.label ?? opt;
+            return (
+              <option key={i} value={optVal}>
+                {optLabel}
+              </option>
+            );
+          })}
+        </select>
+      );
+    }
+
+    // checkbox options (multiple)
+    if (field.type === "checkbox" && Array.isArray(field.options)) {
+      return (
+        <div className="flex flex-col gap-2">
+          {field.options.map((opt: any, i: number) => {
+            const optVal = opt?.value ?? opt;
+            const optLabel = opt?.label ?? opt;
+            const checked = Array.isArray(value) && value.includes(optVal);
+            return (
+              <label key={i} className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) =>
+                    handleCheckboxOptionChange(optVal, e.target.checked)
+                  }
+                  className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                  name={field.name}
+                />
+                <span className="text-sm text-gray-700">{optLabel}</span>
+              </label>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // single boolean checkbox
+    if (field.type === "checkbox") {
+      return (
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => handlePrimitiveChange(e as any)}
+            className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+            name={field.name}
+          />
+          <span className="text-sm text-gray-700">
+            {field.placeholder ?? field.label ?? "Checked"}
+          </span>
+        </label>
+      );
+    }
+
+    // radio group
+    if (field.type === "radio" && Array.isArray(field.options)) {
+      return (
+        <div className="flex flex-col gap-2">
+          {field.options.map((opt: any, i: number) => {
+            const optVal = opt?.value ?? opt;
+            const optLabel = opt?.label ?? opt;
+            return (
+              <label key={i} className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={field.name}
+                  value={optVal}
+                  checked={value === optVal}
+                  onChange={() => updateFieldAtIndex(idx, optVal)}
+                  className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                />
+                <span className="text-sm text-gray-700">{optLabel}</span>
+              </label>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // range
+    if (field.type === "range") {
+      const min = typeof field.min === "number" ? field.min : 0;
+      const max = typeof field.max === "number" ? field.max : 100;
+      const current = value === "" ? min : value;
+      return (
+        <div>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            value={current}
+            onChange={(e) => updateFieldAtIndex(idx, Number(e.target.value))}
+            className={`w-full h-2 rounded-lg ${
+              hasError ? "border-red-300" : "border-gray-300"
+            }`}
+          />
+          <div className="mt-2 text-sm text-gray-700">{current}</div>
+        </div>
+      );
+    }
+
+    // default input
+    const inputType = [
+      "text",
+      "password",
+      "email",
+      "number",
+      "tel",
+      "url",
+      "date",
+    ].includes(field.type ?? "")
+      ? field.type
+      : "text";
+
+    return (
+      <input
+        type={inputType}
+        value={value}
+        onChange={handlePrimitiveChange}
+        placeholder={field.placeholder ?? ""}
+        name={field.name}
+        className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+          hasError ? "border-red-300" : "border-gray-300"
+        }`}
+      />
+    );
   };
 
   return (
@@ -190,7 +612,7 @@ const Intake: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img src={heartIcon} style={{height:"84px"}}/>
+            <img src={heartIcon} style={{ height: "84px" }} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Tell Us About Your Dog
@@ -201,816 +623,113 @@ const Intake: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-            {/* SECTION 1: Let's Get to Know Them */}
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                Let's Get to Know Them
-              </h3>
-              <p className="text-gray-600 mb-6">
-                First things first, let's meet your dog.
-              </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault(); // prevent default form submission
+              if (id) {
+                handleUpdateDog(); // update existing dog
+              } else {
+                handleSubmit(e); // create new dog
+              }
+            }}
+            className="space-y-8"
+          >
+            <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200 text-center">
+              Let's Get to Know Them
+            </h3>
+            <p className="text-gray-600 mb-2 text-center">
+              First things first, let's meet your dog.
+            </p>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  What’s your dog’s name?
-                </label>
-                <input
-                  {...register("name")}
-                  type="text"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  placeholder="e.g., Max, Luna, Buddy"
-                />
-                {errors.name && (
-                  <p className="mt-2 text-sm text-red-600">
-                    {errors.name.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Breed (or mix)
-                  </label>
-                  <input
-                    {...register("breed")}
-                    type="text"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="e.g., Golden Retriever, Mixed"
-                  />
-                  {errors.breed && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.breed.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Age (years)
-                  </label>
-                  <input
-                    {...register("age", { valueAsNumber: true })}
-                    type="number"
-                    step="0.5"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="e.g., 3.5"
-                  />
-                  {errors.age && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.age.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date of Birth (optional)
-                  </label>
-                  <input
-                    {...register("dateOfBirth")}
-                    type="date"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Sex
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "male", label: "Male" },
-                      { value: "female", label: "Female" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("sex")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.sex && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.sex.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Neutered
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Yes" },
-                      { value: "neutered", label: "No" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.neuterStatus && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.neuterStatus.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Weight
-                  </label>
-                  <div className="flex">
-                    {/* Weight input */}
-                    <input
-                      {...register("weight", { valueAsNumber: true })}
-                      type="number"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                      placeholder="e.g., 65"
-                    />
-
-                    {/* Unit selector */}
-                    <select
-                      {...register("weightUnit")}
-                      className="px-3 py-3 border border-l-0 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
-                    >
-                      <option value="lb">lb</option>
-                      <option value="kg">kg</option>
-                    </select>
-                  </div>
-
-                  {/* Validation error */}
-                  {errors.weight && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.weight.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Body Condition
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {[
-                    {
-                      value: "underweight",
-                      label: "Underweight (ribs easily visible)",
-                    },
-                    {
-                      value: "ideal",
-                      label: "Ideal weight (ribs easily felt)",
-                    },
-                    {
-                      value: "overweight",
-                      label: "A bit cuddly (ribs hard to feel)",
-                    },
-                  ].map((option) => (
-                    <label
-                      key={option.value}
-                      className="relative flex items-center p-4 border border-gray-300 rounded-lg hover:border-emerald-500 cursor-pointer group"
-                    >
-                      <input
-                        {...register("bodyCondition")}
-                        type="radio"
-                        value={option.value}
-                        className="sr-only"
-                      />
-                      <span className="w-4 h-4 border-2 border-gray-300 rounded-full mr-3 group-hover:border-emerald-500 group-focus-within:border-emerald-500"></span>
-                      <span className="text-sm text-gray-700 group-hover:text-gray-900">
-                        {option.label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                {errors.bodyCondition && (
-                  <p className="mt-2 text-sm text-red-600">
-                    {errors.bodyCondition.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* SECTION 2: What's in the Bowl */}
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                What's in the Bowl
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Tell me what's going into the tank.
-              </p>
-
+            {loadingForm ? (
+              <p className="text-center text-gray-600 py-8">Loading form…</p>
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Current diet
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "dry", label: "Raw" },
-                      { value: "wet", label: "Kibble" },
-                      { value: "raw", label: "Cooked " },
-                      { value: "cooked", label: "Mixed" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("primaryFoodType")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.primaryFoodType && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.primaryFoodType.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Feeding frequency
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "once", label: "Once daily" },
-                      { value: "twice", label: "Twice daily" },
-                      { value: "grazing", label: "Thrice daily" },
-                      { value: "other", label: "More than thrice daily" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("feedingSchedule")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.feedingSchedule && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.feedingSchedule.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Brand and Product Name (if commercial)
-                  </label>
-                  <input
-                    {...register("brandAndProduct")}
-                    type="text"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="e.g., Royal Canin Adult, Hills Science Diet"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Water Source
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "tap", label: "Tap water" },
-                      { value: "filtered", label: "Filtered water" },
-                      { value: "tank", label: "Tank water" },
-                      { value: "bore", label: "Bore water" },
-                      { value: "other", label: "Other" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("waterSource")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.waterSource && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.waterSource.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Treats, Extras & Table Scraps
-                </label>
-                <textarea
-                  {...register("treatsAndExtras")}
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  placeholder="List any treats, human food, or extras they get..."
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Access to Other Foods
-                  </label>
-                  <textarea
-                    {...register("accessToOtherFoods")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Cat food, scavenging, stock feed, compost raids..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Supplements
-                  </label>
-                  <textarea
-                    {...register("currentSupplements")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="List any supplements with brand and dosage..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* SECTION 3: Health History */}
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                Health History
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Now let's cover their health so we get the full picture.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Any known food intolerances?
-                  </label>
-                  <textarea
-                    {...register("currentMedications")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="List any current medications with dosage..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Previous gut issues?
-                  </label>
-                  <textarea
-                    {...register("pastMedications")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Any notable past medications..."
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Frequency of stool changes
-                  </label>
-                  <textarea
-                    {...register("diagnosedConditions")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Any diagnosed conditions (skin, joints, digestive, etc.)..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stool quality over last month?
-                  </label>
-                  <textarea
-                    {...register("surgeriesOrInjuries")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Any surgeries or major injuries..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                Skin & Coat
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Access to Other Foods
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    min={0}
-                    defaultValue={0}
-                    max={10}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="e.g., 3.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Any hot spots?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Yes" },
-                      { value: "neutered", label: "No" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.neuterStatus && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.neuterStatus.message}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Coat issues?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Dull" },
-                      { value: "neutered", label: "Shedding" },
-                      { value: "neutered", label: "Both" },
-                      { value: "neutered", label: "None" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.neuterStatus && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.neuterStatus.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                Energy & Behaviour
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Tick all that apply — even if they seem unrelated.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Average daily activity?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Low" },
-                      { value: "neutered", label: "Moderate" },
-                      { value: "neutered", label: "High" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.neuterStatus && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.neuterStatus.message}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Energy dips after meals?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Yes" },
-                      { value: "neutered", label: "No" },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.neuterStatus && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.neuterStatus.message}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Mood changes?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Lethargic " },
-                      { value: "neutered", label: "Restless " },
-                      { value: "neutered", label: "Normal " },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.neuterStatus && (
-                    <p className="mt-2 text-sm text-red-600">
-                      {errors.neuterStatus.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                Medical Background:
-              </h3>
-              <p className="text-gray-600 mb-6">
-                What's their day-to-day like?
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Past vet diagnoses?
-                  </label>
-                  <textarea
-                    {...register("stressFactors")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Past vet diagnoses"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Current medications
-                  </label>
-                  <textarea
-                    {...register("stressFactors")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Your dog's current medicaitons"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-4">
-                      Past antibiotic use?
-                    </label>
-                    <div className="space-y-2">
-                      {[
-                        { value: "intact", label: "Never" },
-                        { value: "neutered", label: "Once" },
-                        { value: "neutered", label: "Multiple in past year" },
-                      ].map((option) => (
-                        <label key={option.value} className="flex items-center">
-                          <input
-                            {...register("neuterStatus")}
-                            type="radio"
-                            value={option.value}
-                            className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">
-                            {option.label}
-                          </span>
+                {formFields.map((field, idx) => (
+                  <div
+                    key={field.id ?? `${field.name}-${idx}`}
+                    className="bg-white rounded-xl p-2 py-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="pr-4 w-3/4">
+                        <label className="block text-sm font-medium text-gray-900">
+                          {field.label || field.name || "Untitled field"}
+                          {field.required && (
+                            <span className="text-red-500">&nbsp;*</span>
+                          )}
                         </label>
-                      ))}
+
+                        {field.description ? (
+                          <p className="mt-3 text-sm text-gray-600">
+                            {field.description}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                    {errors.neuterStatus && (
-                      <p className="mt-2 text-sm text-red-600">
-                        {errors.neuterStatus.message}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-4">
-                      Past antibiotic use?
-                    </label>
-                    <input
-                      className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                      type="date"
-                    />
-                    {errors.neuterStatus && (
-                      <p className="mt-2 text-sm text-red-600">
-                        {errors.neuterStatus.message}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                Supplement & Treat Intake:
-              </h3>
+                    <div className="mt-4">
+                      {renderInputForField(field, idx)}
+                    </div>
 
-              <div className="space-y-6 grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Supplements currently given?
-                  </label>
-                  <textarea
-                    {...register("mainHealthConcern")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Describe your main concern in your own words..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Treat frequency & type?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Daily " },
-                      { value: "neutered", label: "Weekly " },
-                      { value: "neutered", label: "Never " },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="radio"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      {typeof field.maxLength === "number" && (
+                        <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                          maxLength: {field.maxLength}
                         </span>
-                      </label>
-                    ))}
-                    <input
-                      className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 max-w-[200px]"
-                      placeholder="Custom"
-                      type="text"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Behavior Notes */}
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">
-                Owner Goals:
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Main reason for joining?
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "intact", label: "Better stool " },
-                      { value: "neutered", label: " Less itch " },
-                      { value: "neutered", label: "More energy " },
-                      { value: "neutered", label: "General wellness " },
-                    ].map((option) => (
-                      <label key={option.value} className="flex items-center">
-                        <input
-                          {...register("neuterStatus")}
-                          type="checkbox"
-                          value={option.value}
-                          className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm text-gray-700">
-                          {option.label}
+                      )}
+                      {field.min !== null && field.min !== undefined && (
+                        <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                          min: {field.min}
                         </span>
-                      </label>
-                    ))}
+                      )}
+                      {field.max !== null && field.max !== undefined && (
+                        <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                          max: {field.max}
+                        </span>
+                      )}
+                    </div>
+
+                    {field.aiText ? (
+                      <p className="mt-3 text-sm text-indigo-700">
+                        {field.aiText}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-3">
+                      {field.required &&
+                      (field.value === "" ||
+                        field.value === null ||
+                        (Array.isArray(field.value) &&
+                          field.value.length === 0)) ? (
+                        <p className="text-sm text-red-700 bg-red-50 px-3 py-2 rounded">
+                          {field.errorText || "This field is required."}
+                        </p>
+                      ) : field.errorText ? (
+                        <p className="text-sm text-gray-500">
+                          {field.errorText}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Main reason for joining?
-                  </label>
-                  <textarea
-                    {...register("stressFactors")}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Your dog's current medicaitons"
-                  />
-                  <p className="mt-2 text-sm text-gray-500">
-                    {watch("behaviorNotes")?.length || 0}/500 characters
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Willingness to follow strict plan?
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    min={0}
-                    defaultValue={0}
-                    max={10}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="e.g., 3.5"
-                  />
-                  <p className="mt-2 text-sm text-gray-500">Rank on 0 to 10</p>
-                </div>
+                ))}
               </div>
-            </div>
+            )}
 
             {/* Submit Button */}
             <div className="flex justify-center">
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || hasErrors}
                 className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-8 py-4 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2 text-lg"
               >
                 <span>
-                  {isSubmitting ? "Adding Dog..." : "Add Dog & Get Plan"}
+                  {isSubmitting
+                    ? id
+                      ? "Updating Plan..."
+                      : "Adding Dog..."
+                    : id
+                    ? "Update Plan"
+                    : "Add Dog & Get Plan"}
                 </span>
                 {!isSubmitting && <ArrowRight className="h-5 w-5" />}
               </button>

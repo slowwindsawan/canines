@@ -1,11 +1,14 @@
 from pydantic import BaseModel
 from typing import Any
 from uuid import UUID
+from typing import Optional
+from datetime import datetime
 
 class UserCreate(BaseModel):
     username: str
     email: str
     password: str
+    name: str
 
 class UserLogin(BaseModel):
     email: str
@@ -31,3 +34,12 @@ class OnboardingFormResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class DogCreate(BaseModel):
+    name: str
+    breed: Optional[str] = None
+    sex: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    weight_kg: Optional[float] = None
+    notes: Optional[str] = None
+    form_data: Optional[dict] = None

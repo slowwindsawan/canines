@@ -69,6 +69,7 @@ class User(Base):
 
     id = uuid_pk()
     username = Column(String(80), unique=True, index=True, nullable=False)
+    name=Column(String(100), nullable=False, default="")
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
 
@@ -136,6 +137,7 @@ class Dog(Base):
     created_at, updated_at = ts_columns()
 
     owner = relationship("User", back_populates="dogs")
+    form_data=Column(JSON, nullable=True)
     activities = relationship("DogActivity", back_populates="dog", cascade="all, delete-orphan")
     todos = relationship("TodoItem", back_populates="dog", cascade="all, delete-orphan")
     wins = relationship("Win", back_populates="dog", cascade="all, delete-orphan")
@@ -145,7 +147,6 @@ class Dog(Base):
     __table_args__ = (
         UniqueConstraint("owner_id", "name", name="uq_dogs_owner_name"),
     )
-
 
 class DogActivity(Base):
     __tablename__ = "dog_activities"

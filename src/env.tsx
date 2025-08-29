@@ -19,7 +19,11 @@ const getToken = () => {
  * Redirect to login page
  */
 const handleUnauthorized = () => {
-  window.location.href = "/login"; // navigate to login
+  localStorage.removeItem("jwt_token");
+
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
 };
 
 /**
@@ -29,7 +33,12 @@ const handleUnauthorized = () => {
  * @param {object|FormData} body - JSON payload or FormData
  * @param {boolean} isFormData - whether the body is FormData
  */
-const jwtRequest = async (endpoint, method = "GET", body = null, isFormData = false) => {
+const jwtRequest = async (
+  endpoint,
+  method = "GET",
+  body = null,
+  isFormData = false
+) => {
   const token = getToken();
   if (!token) {
     handleUnauthorized();
@@ -57,7 +66,6 @@ const jwtRequest = async (endpoint, method = "GET", body = null, isFormData = fa
       handleUnauthorized();
       return;
     }
-    console.error("JWT request failed:", error);
     throw error;
   }
 };
@@ -65,7 +73,11 @@ const jwtRequest = async (endpoint, method = "GET", body = null, isFormData = fa
 /**
  * Make a public request (no JWT)
  */
-const publicRequest = async (endpoint: string, method = "GET", body: any = null) => {
+const publicRequest = async (
+  endpoint: string,
+  method = "GET",
+  body: any = null
+) => {
   try {
     const response = await axios({
       url: `${BASE_URL}${endpoint}`,
@@ -81,9 +93,4 @@ const publicRequest = async (endpoint: string, method = "GET", body: any = null)
   }
 };
 
-export {
-  BASE_URL,
-  jwtRequest,
-  publicRequest,
-  getToken,
-};
+export { BASE_URL, jwtRequest, publicRequest, getToken };

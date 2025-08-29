@@ -55,6 +55,7 @@ const Signup: React.FC = () => {
         username: data.name,
         email: data.email,
         password: data.password,
+        name: data.name
       });
 
       console.log(result)

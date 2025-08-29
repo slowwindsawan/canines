@@ -1,8 +1,8 @@
-"""added onboarding form.
+"""chagnes in user
 
-Revision ID: ea594c36e756
+Revision ID: be6c47daee89
 Revises: 
-Create Date: 2025-08-25 15:07:18.863182
+Create Date: 2025-08-27 10:46:29.749011
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'ea594c36e756'
+revision: str = 'be6c47daee89'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -69,6 +69,7 @@ def upgrade() -> None:
     op.create_table('users',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('username', sa.String(length=80), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('hashed_password', sa.String(length=255), nullable=False),
     sa.Column('stripe_customer_id', sa.String(length=120), nullable=True),
@@ -102,6 +103,7 @@ def upgrade() -> None:
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('form_data', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('owner_id', 'name', name='uq_dogs_owner_name')

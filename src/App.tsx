@@ -175,7 +175,7 @@ const App: React.FC = () => {
                 }
               />
               <Route
-                path="/intake"
+                path="/intake/:id?"
                 element={
                   <ProtectedRoute>
                     <UserLayout>

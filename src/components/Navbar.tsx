@@ -5,7 +5,7 @@ import { Bell, Heart, Menu, X } from "lucide-react";
 import logo from "./logo.png";
 
 const Navbar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
@@ -15,6 +15,11 @@ const Navbar: React.FC = () => {
     { name: "Account", href: "/account" },
     { name: "Subscription", href: "/subscription" },
   ];
+
+  const logout = () => {
+    localStorage.removeItem("jwt_token");
+    window.location.href = "/login";
+  };
 
   const isActive = (path: string) => location.pathname === path;
 
