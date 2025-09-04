@@ -132,8 +132,10 @@ class Dog(Base):
     date_of_birth = Column(DateTime(timezone=True))
     weight_kg = Column(Float)
     notes = Column(Text)
+    overview=Column(JSON, nullable=True)
+    protocol=Column(JSON, nullable=True)
 
-    is_active = Column(Boolean, default=True, nullable=False)
+    status = Column(String(80), nullable=False, default="approved")
     created_at, updated_at = ts_columns()
 
     owner = relationship("User", back_populates="dogs")
@@ -168,7 +170,6 @@ class DogActivity(Base):
     __table_args__ = (
         Index("ix_dog_activities_dog_when_type", "dog_id", "occurred_at", "activity_type"),
     )
-
 
 class TodoItem(Base):
     __tablename__ = "todos"
@@ -340,3 +341,50 @@ class OnboardingForm(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     json_data = Column(JSON, nullable=True)    # default empty array
+
+
+# ---------- Onboarding Submissions & Admin Notifications ----------
+
+class OnboardingSubmission(Base):
+    __tablename__ = "submissions"
+
+    id = uuid_pk()
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    dog_id = Column(UUID(as_uuid=True), ForeignKey("dogs.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    behaviour_note = Column(Text)
+    status = Column(String(50), nullable=False, default="pending")  # simple string status
+    symptoms = Column(JSON, nullable=True)
+    confidence = Column(Integer, nullable=True)
+    diagnosis = Column(JSON, nullable=True)
+    priority = Column(String(50), nullable=False, default="low")  # e.g., low/medium/high
+
+    created_at, updated_at = ts_columns()
+
+    user = relationship("User")
+    dog = relationship("Dog")
+
+    __table_args__ = (
+        Index("ix_submissions_user_dog_status", "user_id", "dog_id", "status"),
+    )
+
+
+class AdminNotification(Base):
+    __tablename__ = "admin_notifications"
+
+    id = uuid_pk()
+    target_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    submission_id = Column(UUID(as_uuid=True), ForeignKey("submissions.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at, updated_at = ts_columns()
+
+    target_user = relationship("User")
+    submission = relationship("OnboardingSubmission")
+
+    __table_args__ = (
+        Index("ix_admin_notifications_target_read", "target_user_id", "is_read"),
+    )

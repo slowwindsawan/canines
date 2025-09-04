@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { url, z } from "zod";
@@ -9,15 +9,14 @@ import { useAdmin } from "../context/AdminContext";
 import { mockProgressData, mockProtocols } from "../data/mockData";
 import paws from "../assets/paws.png";
 import foodIcon from "../assets/pet-food.png";
-import healthIcon from "../assets/health.png"
-import energyIcon from "../assets/energy.png"
-import stoolIcon from "../assets/stool.png"
-import dogIcon from "../assets/dog.png"
-import dishIcon from "../assets/dish.png"
-import capsuleIcon from "../assets/capsule.png"
-import boneIcon from "../assets/bone.png"
-import reportIcon from "../assets/report.png"
-import heartIcon from "../assets/heart.png"
+import healthIcon from "../assets/health.png";
+import energyIcon from "../assets/energy.png";
+import stoolIcon from "../assets/stool.png";
+import dogIcon from "../assets/dog.png";
+import dishIcon from "../assets/dish.png";
+import capsuleIcon from "../assets/capsule.png";
+import boneIcon from "../assets/bone.png";
+import heartIcon from "../assets/heart.png";
 
 import {
   ClipboardList,
@@ -49,6 +48,7 @@ import {
   Circle,
   Lock,
   Lightbulb,
+  CircleDashed,
 } from "lucide-react";
 import HealthUpdateForm from "../components/HealthUpdateForm";
 import { jwtRequest } from "../env";
@@ -69,6 +69,7 @@ const Dashboard: React.FC = () => {
     getLastDiagnosisSubmission,
     isLoading,
   } = useDog();
+  const navigate = useNavigate();
   const { submissions } = useAdmin();
   const [showDogSelector, setShowDogSelector] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<
@@ -77,21 +78,19 @@ const Dashboard: React.FC = () => {
   const [showProgressForm, setShowProgressForm] = React.useState(false);
   const [isSubmittingProgress, setIsSubmittingProgress] = React.useState(false);
   const [showHealthUpdateForm, setShowHealthUpdateForm] = React.useState(false);
-  const [showBadgeSuccessPopup, setShowBadgeSuccessPopup]=useState(false)
-  console.log(user)
-  const [dogs, setDogs]=useState([])
-  const [selectedDog, setSelectedDog]=useState(null)
+  const [showBadgeSuccessPopup, setShowBadgeSuccessPopup] = useState(false);
+  const [dogs, setDogs] = useState([]);
+  const [selectedDog, setSelectedDog] = useState(null);
 
-  useEffect(()=>{
-    setDogs(user?.dogs)
-  },[user])
+  useEffect(() => {
+    setDogs(user?.dogs);
+  }, [user]);
 
-  useEffect(()=>{
-    if(dogs){
+  useEffect(() => {
+    if (dogs) {
       setSelectedDog(dogs[0] || null);
     }
-  },[dogs])
-
+  }, [dogs]);
 
   // Filter progress data for selected dog
   const dogProgressData = selectedDog
@@ -298,96 +297,27 @@ const Dashboard: React.FC = () => {
   //Next steps
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
 
-  // Generate next steps based on dog's current phase and progress
-  const generateNextSteps = (): NextStep[] => {
-    const currentPhase = selectedDog?.currentProtocolPhase || "reset";
-    const steps: NextStep[] = [];
+  const pendingSteps = selectedDog?.overview?.what_to_do_goals.filter(
+    (step) => !step.completed
+  );
+  const completedCount = selectedDog?.overview?.what_to_do_goals.filter(
+    (step) => step.completed
+  ).length;
 
-    // Phase-specific steps
-    if (currentPhase === "reset") {
-      steps.push({
-        id: "add-probiotics",
-        title: "Add probiotics to morning meal",
-        description: "Start with half dose for first 3 days, then full dose",
-        icon: Pill,
-        completed: false,
-        dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-        priority: "high",
-        category: "supplement",
-      });
+  const toggleStepCompletion = (stepId: any) => {
+    setSelectedDog((prevDog) => {
+      if (!prevDog) return prevDog;
 
-      steps.push({
-        id: "eliminate-treats",
-        title: "Remove all treats and table scraps",
-        description: "Stick to protocol meals only during reset phase",
-        icon: Circle,
-        completed: false,
-        priority: "high",
-        category: "diet",
-      });
-    }
-
-    if (currentPhase === "rebuild") {
-      steps.push({
-        id: "add-fish-oil",
-        title: "Add fish oil this week",
-        description: "Start with 500mg daily with dinner",
-        icon: Pill,
-        completed: false,
-        dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-        priority: "medium",
-        category: "supplement",
-      });
-
-      steps.push({
-        id: "book-rebuild-call",
-        title: "Book your Rebuild phase call",
-        description: "Schedule 30-min consultation to review progress",
-        icon: Phone,
-        completed: false,
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        priority: "high",
-        category: "appointment",
-      });
-    }
-
-    // General steps
-    steps.push({
-      id: "daily-gut-check",
-      title: "Complete daily gut check",
-      description: "Track mood, energy, skin, appetite, and stool quality",
-      icon: CheckCircle,
-      completed: false,
-      priority: "medium",
-      category: "monitoring",
+      return {
+        ...prevDog,
+        overview: {
+          ...prevDog.overview,
+          what_to_do_goals: prevDog.overview.what_to_do_goals.map((step) =>
+            step.id === stepId ? { ...step, completed: !step.completed } : step
+          ),
+        },
+      };
     });
-
-    steps.push({
-      id: "read-gut-guide",
-      title: "Read the Gut Repair Guide",
-      description: "Learn about the science behind your dog's protocol",
-      icon: BookOpen,
-      completed: false,
-      priority: "low",
-      category: "education",
-    });
-
-    return steps.map((step) => ({
-      ...step,
-      completed: completedSteps.includes(step.id),
-    }));
-  };
-
-  const nextSteps = generateNextSteps();
-  const pendingSteps = nextSteps.filter((step) => !step.completed);
-  const completedCount = nextSteps.filter((step) => step.completed).length;
-
-  const toggleStepCompletion = (stepId: string) => {
-    setCompletedSteps((prev) =>
-      prev.includes(stepId)
-        ? prev.filter((id) => id !== stepId)
-        : [...prev, stepId]
-    );
   };
 
   const getPriorityColor = (priority: string) => {
@@ -447,7 +377,7 @@ const Dashboard: React.FC = () => {
                 <span className="text-sm text-blue-200">Your Active Plan</span>
               </div>
               <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
-                {user?.subscription_tier||"Unknown"}
+                {user?.subscription_tier || "Unknown"}
               </span>
             </div>
           </div>
@@ -512,7 +442,7 @@ const Dashboard: React.FC = () => {
                                   onClick={() => {
                                     selectDog(dog.id);
                                     setShowDogSelector(false);
-                                    setSelectedDog(dog)
+                                    setSelectedDog(dog);
                                   }}
                                   className={`w-full flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg text-left transition-colors ${
                                     selectedDog?.id === dog.id
@@ -633,7 +563,10 @@ const Dashboard: React.FC = () => {
                 </p>
 
                 {/* CTA */}
-                <button className="mt-6 px-5 py-2 bg-brand-midgrey text-white rounded-lg text-sm font-medium shadow relative z-10" onClick={()=>setShowBadgeSuccessPopup(false)}>
+                <button
+                  className="mt-6 px-5 py-2 bg-brand-midgrey text-white rounded-lg text-sm font-medium shadow relative z-10"
+                  onClick={() => setShowBadgeSuccessPopup(false)}
+                >
                   View Badges
                 </button>
               </div>
@@ -795,8 +728,9 @@ const Dashboard: React.FC = () => {
                       <p className="mb-4 text-sm">
                         Estimated time: 9 days, Next review: 03/05/2026
                       </p>
-
-                      {dogProtocol ? (
+                      {console.log(selectedDog)}
+                      {selectedDog?.overview &&
+                      selectedDog?.overview?.daily_meal_plan ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-4 border border-orange-200">
                             <h3 className="font-semibold text-gray-900 mb-2 flex items-center ">
@@ -806,7 +740,14 @@ const Dashboard: React.FC = () => {
                               Breakfast
                             </h3>
                             <p className="text-gray-700 text-sm">
-                              {dogProtocol.mealPlan.breakfast}
+                              {selectedDog?.overview?.daily_meal_plan?.map(
+                                (element, index) =>
+                                  element.title === "Breakfast" ? (
+                                    <span key={index}>
+                                      {element.description}
+                                    </span>
+                                  ) : null
+                              )}
                             </p>
                           </div>
 
@@ -818,7 +759,16 @@ const Dashboard: React.FC = () => {
                               Dinner
                             </h3>
                             <p className="text-gray-700 text-sm">
-                              {dogProtocol.mealPlan.dinner}
+                              {selectedDog?.overview?.daily_meal_plan?.map(
+                                (element, index) =>
+                                  element.title === "Dinner" ? (
+                                    <span key={index}>
+                                      {element.description}
+                                    </span>
+                                  ) : (
+                                    <></>
+                                  )
+                              )}
                             </p>
                           </div>
                         </div>
@@ -834,7 +784,7 @@ const Dashboard: React.FC = () => {
                             meal plan for {selectedDog.name}
                           </p>
                           <Link
-                            to={"/intake?id="+selectedDog?.id}
+                            to={"/intake?id=" + selectedDog?.id}
                             className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
                           >
                             <Plus className="h-4 w-4" />
@@ -859,7 +809,9 @@ const Dashboard: React.FC = () => {
                             progress
                           </p>
                           <button
-                            onClick={() => setShowHealthUpdateForm(true)}
+                            onClick={() =>
+                              navigate("/intake?id=" + selectedDog?.id)
+                            }
                             className="bg-gradient-to-r from-pink-600 to-rose-600 text-white px-6 py-3 rounded-lg font-medium hover:from-pink-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-[1.02] flex items-center space-x-2 mx-auto"
                           >
                             <span>Start Gut Check</span>
@@ -898,7 +850,7 @@ const Dashboard: React.FC = () => {
 
                         <div className="text-center">
                           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                          <img src={healthIcon} />
+                            <img src={healthIcon} />
                           </div>
                           <h4 className="font-medium text-gray-900">
                             Overall Health
@@ -1037,7 +989,9 @@ const Dashboard: React.FC = () => {
                           What to do now (Goals)
                         </h2>
                         <div className="text-sm text-gray-600">
-                          {completedCount}/{nextSteps.length} completed
+                          {completedCount}/
+                          {selectedDog?.overview?.what_to_do_goals.length}{" "}
+                          completed
                         </div>
                       </div>
 
@@ -1047,7 +1001,10 @@ const Dashboard: React.FC = () => {
                           <span>Progress</span>
                           <span>
                             {Math.round(
-                              (completedCount / nextSteps.length) * 100
+                              (completedCount /
+                                selectedDog?.overview?.what_to_do_goals
+                                  .length) *
+                                100
                             )}
                             %
                           </span>
@@ -1057,7 +1014,10 @@ const Dashboard: React.FC = () => {
                             className="bg-gradient-to-r from-lime-600 to-brand-charcoal h-2 rounded-full transition-all duration-300"
                             style={{
                               width: `${
-                                (completedCount / nextSteps.length) * 100
+                                (completedCount /
+                                  selectedDog?.overview?.what_to_do_goals
+                                    .length) *
+                                100
                               }%`,
                             }}
                           ></div>
@@ -1066,11 +1026,10 @@ const Dashboard: React.FC = () => {
 
                       {/* Steps List */}
                       <div className="space-y-4">
-                        {nextSteps.map((step) => {
-                          const IconComponent = step.icon;
+                        {selectedDog?.overview?.what_to_do_goals.map((step) => {
                           const isOverdue =
-                            step.dueDate &&
-                            new Date(step.dueDate) < new Date() &&
+                            step.due_date &&
+                            new Date(step.due_date) < new Date() &&
                             !step.completed;
 
                           return (
@@ -1084,7 +1043,12 @@ const Dashboard: React.FC = () => {
                             >
                               <div className="flex items-start space-x-4">
                                 <button
-                                  onClick={() => {toggleStepCompletion(step.id);!step.completed?setShowBadgeSuccessPopup(true):null}}
+                                  onClick={() => {
+                                    toggleStepCompletion(step.id || "");
+                                    !step.completed
+                                      ? setShowBadgeSuccessPopup(true)
+                                      : null;
+                                  }}
                                   className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                                     step.completed
                                       ? "bg-green-600 border-green-600 text-white"
@@ -1098,13 +1062,13 @@ const Dashboard: React.FC = () => {
 
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center space-x-2 mb-1">
-                                    <IconComponent
+                                    {/* <IconComponent
                                       className={`h-4 w-4 ${
                                         step.completed
                                           ? "text-green-600"
                                           : "text-gray-600"
                                       }`}
-                                    />
+                                    /> */}
                                     <h3
                                       className={`font-medium ${
                                         step.completed
@@ -1137,13 +1101,13 @@ const Dashboard: React.FC = () => {
                                     {step.description}
                                   </p>
 
-                                  {step.dueDate && !step.completed && (
+                                  {step.due_date && !step.completed && (
                                     <div className="flex items-center space-x-1 mt-2 text-xs text-gray-500">
                                       <Clock className="h-3 w-3" />
                                       <span>
                                         Due:{" "}
                                         {new Date(
-                                          step.dueDate
+                                          step.due_date
                                         ).toLocaleDateString()}
                                       </span>
                                     </div>
@@ -1169,19 +1133,20 @@ const Dashboard: React.FC = () => {
                       )}
 
                       {/* All Complete Message */}
-                      {pendingSteps.length === 0 && nextSteps.length > 0 && (
-                        <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                          <div className="flex items-center space-x-2">
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                            <p className="text-sm text-green-800">
-                              <strong>Excellent work!</strong> You've completed
-                              all current action items for {selectedDog.name}.
-                              New steps will appear as you progress through the
-                              gut health protocol.
-                            </p>
+                      {pendingSteps.length === 0 &&
+                        selectedDog?.overview?.what_to_do_goals.length > 0 && (
+                          <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                            <div className="flex items-center space-x-2">
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <p className="text-sm text-green-800">
+                                <strong>Excellent work!</strong> You've
+                                completed all current action items for{" "}
+                                {selectedDog.name}. New steps will appear as you
+                                progress through the gut health protocol.
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
                     </div>
 
                     {/* Recent Activity and Health Summary */}
@@ -1435,7 +1400,7 @@ const Dashboard: React.FC = () => {
                       </div>
                     )}
 
-                    {currentProtocol ? (
+                    {selectedDog?.overview ? (
                       <>
                         {/* Header */}
                         <div className="text-center">
@@ -1450,12 +1415,7 @@ const Dashboard: React.FC = () => {
                           </p>
                           <div className="mt-4 inline-flex items-center space-x-2 bg-brand-offwhite text-brand-charcoal px-4 py-2 rounded-full text-sm font-medium">
                             <Calendar className="h-4 w-4" />
-                            <span>
-                              Created on{" "}
-                              {new Date(
-                                currentProtocol.createdAt
-                              ).toLocaleDateString()}
-                            </span>
+                            <span>Created on 1/20/2024</span>
                           </div>
                         </div>
 
@@ -1463,14 +1423,14 @@ const Dashboard: React.FC = () => {
                           {/* Meal Plan */}
                           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <div className="flex items-center space-x-2 mb-6">
-                              <img src={boneIcon} className="w-10"/>
+                              <img src={boneIcon} className="w-10" />
                               <h2 className="text-xl font-bold text-gray-900 ">
                                 Daily Meal Plan
                               </h2>
                             </div>
 
                             {/* Phase banner */}
-                            <div className="flex items-center my-4 w-full bg-white py-3 px-8">
+                            <div className="flex items-center my-4 w-full bg-white py-3 px-8" style={{overflowX:"scroll"}}>
                               {/* Step 1: Past */}
                               <div className="flex items-center">
                                 <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-charcoal text-white text-xs font-bold">
@@ -1505,25 +1465,23 @@ const Dashboard: React.FC = () => {
                             </div>
 
                             <div className="space-y-6">
-                              <div className="bg-brand-offwhite rounded-lg p-4">
-                                <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                                  <span className="w-3 h-3 bg-orange-500 rounded-full mr-2"></span>
-                                  Breakfast
-                                </h3>
-                                <p className="text-gray-700">
-                                  {currentProtocol.mealPlan.breakfast}
-                                </p>
-                              </div>
-
-                              <div className="bg-brand-offwhite rounded-lg p-4">
-                                <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                                  <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
-                                  Dinner
-                                </h3>
-                                <p className="text-gray-700">
-                                  {currentProtocol.mealPlan.dinner}
-                                </p>
-                              </div>
+                              {selectedDog?.overview?.daily_meal_plan?.map(
+                                (el, i) => (
+                                  <div
+                                    key={i}
+                                    className="bg-brand-offwhite rounded-lg p-4"
+                                    style={{overflowWrap: "anywhere"}}
+                                  >
+                                    <h3 className="font-semibold text-gray-900 mb-1 flex items-center">
+                                      <CircleDashed size={15} className="mr-2 text-purple-700 text-bold" />
+                                      {el?.title || `Meal ${i + 1}`}
+                                    </h3>
+                                    <p className="text-gray-700">
+                                      {el?.description || ""}
+                                    </p>
+                                  </div>
+                                )
+                              )}
 
                               <div className="bg-gray-50 rounded-lg p-4">
                                 <div className="flex items-center justify-between">
@@ -1531,7 +1489,10 @@ const Dashboard: React.FC = () => {
                                     Meals per day:
                                   </span>
                                   <span className="text-lg font-bold text-emerald-600">
-                                    {currentProtocol.mealPlan.mealsPerDay}
+                                    {
+                                      selectedDog?.overview?.daily_meal_plan
+                                        ?.length
+                                    }
                                   </span>
                                 </div>
                               </div>
@@ -1541,29 +1502,27 @@ const Dashboard: React.FC = () => {
                           {/* Supplements */}
                           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <div className="flex items-center space-x-2 mb-6">
-                              <img src={capsuleIcon} className="w-10"/>
+                              <img src={capsuleIcon} className="w-10" />
                               <h2 className="text-xl font-bold text-gray-900">
                                 Supplement Protocol
                               </h2>
                             </div>
-
-                            <div className="space-y-4">
-                              {currentProtocol.supplements.map(
-                                (supplement, index) => (
-                                  <div
-                                    key={index}
-                                    className="flex items-start space-x-3 p-4 bg-brand-offwhite rounded-lg"
-                                  >
-                                    <CheckCircle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
-                                    <div>
-                                      <p className="text-gray-900 font-medium">
-                                        {supplement}
-                                      </p>
+                            {selectedDog?.protocol?.supplements && (
+                              <div className="space-y-4">
+                                {selectedDog?.protocol?.supplements.map(
+                                  (supplement, index) => (
+                                    <div className="flex items-start space-x-3 p-4 bg-brand-offwhite rounded-lg">
+                                      <CheckCircle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="text-gray-900 font-medium">
+                                          {supplement.title}
+                                        </p>
+                                      </div>
                                     </div>
-                                  </div>
-                                )
-                              )}
-                            </div>
+                                  )
+                                )}
+                              </div>
+                            )}
 
                             <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                               <p className="text-sm text-yellow-800">
@@ -1573,83 +1532,114 @@ const Dashboard: React.FC = () => {
                               </p>
                             </div>
                           </div>
+
+                          {/* Custom cards */}
+                          {selectedDog?.protocol?.custom_sections ? (
+                            <>
+                              {selectedDog?.protocol?.custom_sections?.map(
+                                (sec) => (
+                                  <>
+                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                      <div className="flex items-center space-x-2 mb-6">
+                                        <h2 className="text-xl font-bold text-gray-900">
+                                          {sec.section_name}
+                                        </h2>
+                                      </div>
+                                      {sec.items && (
+                                        <div className="space-y-4">
+                                          {sec.items.map((el, index) => (
+                                            <div className="flex items-start space-x-3 p-4 bg-brand-offwhite rounded-lg">
+                                              <div
+                                                key={index}
+                                                className="bg-brand-offwhite rounded-lg p-4"
+                                                style={{overflowWrap: "anywhere"}}
+                                              >
+                                                <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                                                  <span className="w-3 h-3 bg-blue-300 rounded-full mr-2"></span>
+                                                  {el?.title || `Meal ${i + 1}`}
+                                                </h3>
+                                                <p className="text-gray-700">
+                                                  {el?.description || ""}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )
+                              )}
+                            </>
+                          ) : (
+                            <></>
+                          )}
                         </div>
 
                         {/* Lifestyle Tips */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                           <div className="flex items-center space-x-2 mb-6">
-                            <img src={heartIcon} style={{height:"34px"}}/>
+                            <img src={heartIcon} style={{ height: "34px" }} />
                             <h2 className="text-xl font-bold text-gray-900">
                               Lifestyle Recommendations
                             </h2>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {currentProtocol.lifestyleTips.map((tip, index) => (
-                              <div
-                                key={index}
-                                onClick={(e) => {
-                                  const [hollow, filled] =
-                                    e.currentTarget.querySelectorAll("svg");
-                                  hollow.classList.toggle("hidden");
-                                  filled.classList.toggle("hidden");
-                                }}
-                                className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-lg cursor-pointer"
-                              >
-                                {/* Hollow (default) */}
-                                <Circle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
+                            {selectedDog?.protocol &&
+                              selectedDog?.protocol?.lifestyle_recommendations?.map(
+                                (tip, index) => (
+                                  <div
+                                    key={index}
+                                    onClick={(e) => {
+                                      const [hollow, filled] =
+                                        e.currentTarget.querySelectorAll("svg");
+                                      hollow.classList.toggle("hidden");
+                                      filled.classList.toggle("hidden");
+                                    }}
+                                    className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-lg cursor-pointer"
+                                  >
+                                    {/* Hollow (default) */}
+                                    <Circle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
 
-                                {/* Filled (hidden by default) */}
-                                <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0 hidden" />
-
-                                <p className="text-gray-700">{tip}</p>
-                              </div>
-                            ))}
+                                    {/* Filled (hidden by default) */}
+                                    <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0 hidden" />
+                                    <p className="text-gray-700">{tip.title}</p>
+                                  </div>
+                                )
+                              )}
                           </div>
                         </div>
 
                         {/* Next Steps */}
-                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-6">
-                          <h3 className="text-lg font-bold text-gray-900 mb-4 ">
-                            Next Steps
-                          </h3>
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-3">
-                              <span className="flex-shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                                1
-                              </span>
-                              <p className="text-gray-700">
-                                Start implementing the meal plan gradually over
-                                7-10 days
-                              </p>
+                        {selectedDog?.protocol?.next_steps ? (
+                          <>
+                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-6">
+                              <h3 className="text-lg font-bold text-gray-900 mb-4 ">
+                                Next Steps
+                              </h3>
+                              <div className="space-y-3">
+                                {selectedDog?.protocol?.next_steps?.map(
+                                  (step, index) => (
+                                    <>
+                                      <div className="flex items-center space-x-3">
+                                        <span className="flex-shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                                          {index + 1}
+                                        </span>
+                                        <p className="text-gray-700">
+                                          {step.title}
+                                        </p>
+                                      </div>
+                                    </>
+                                  )
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center space-x-3">
-                              <span className="flex-shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                                2
-                              </span>
-                              <p className="text-gray-700">
-                                Begin supplement routine as recommended
-                              </p>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <span className="flex-shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                                3
-                              </span>
-                              <p className="text-gray-700">
-                                Track your dog's progress weekly using our
-                                tracker
-                              </p>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <span className="flex-shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                                4
-                              </span>
-                              <p className="text-gray-700">
-                                Schedule follow-up assessment in 4 weeks
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                          </>
+                        ) : (
+                          <></>
+                        )}
+
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                           <div className="flex flex-col sm:flex-row gap-4">
                             <button className="bg-gradient-to-r px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center space-x-2 bg-brand-charcoal text-brand-offwhite hover:bg-brand-midgrey hover:text-white">
@@ -1666,7 +1656,7 @@ const Dashboard: React.FC = () => {
                     ) : (
                       <div className="text-center py-16">
                         <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                          <img src={heartIcon} style={{height:"34px"}}/>
+                          <img src={heartIcon} style={{ height: "34px" }} />
                         </div>
                         <h1 className="text-3xl font-bold text-gray-900 mb-4 ">
                           Gut Health Protocol Not Available
@@ -1681,7 +1671,9 @@ const Dashboard: React.FC = () => {
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                           <button
-                            onClick={() => setShowHealthUpdateForm(true)}
+                            onClick={() =>
+                              navigate("/intake?id=" + selectedDog?.id)
+                            }
                             className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
                           >
                             Start Health Assessment

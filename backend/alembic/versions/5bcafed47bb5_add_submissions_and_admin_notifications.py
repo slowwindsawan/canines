@@ -1,8 +1,8 @@
-"""chagnes in user
+"""add submissions and admin_notifications
 
-Revision ID: be6c47daee89
+Revision ID: 5bcafed47bb5
 Revises: 
-Create Date: 2025-08-27 10:46:29.749011
+Create Date: 2025-09-04 14:19:32.906972
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'be6c47daee89'
+revision: str = '5bcafed47bb5'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -100,7 +100,9 @@ def upgrade() -> None:
     sa.Column('date_of_birth', sa.DateTime(timezone=True), nullable=True),
     sa.Column('weight_kg', sa.Float(), nullable=True),
     sa.Column('notes', sa.Text(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('overview', sa.JSON(), nullable=True),
+    sa.Column('protocol', sa.JSON(), nullable=True),
+    sa.Column('status', sa.String(length=80), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('form_data', sa.JSON(), nullable=True),
@@ -180,6 +182,26 @@ def upgrade() -> None:
     op.create_index(op.f('ix_dog_protocols_dog_id'), 'dog_protocols', ['dog_id'], unique=False)
     op.create_index(op.f('ix_dog_protocols_id'), 'dog_protocols', ['id'], unique=True)
     op.create_index(op.f('ix_dog_protocols_protocol_id'), 'dog_protocols', ['protocol_id'], unique=False)
+    op.create_table('submissions',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('user_id', sa.UUID(), nullable=False),
+    sa.Column('dog_id', sa.UUID(), nullable=False),
+    sa.Column('behaviour_note', sa.Text(), nullable=True),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('symptoms', sa.JSON(), nullable=True),
+    sa.Column('confidence', sa.Integer(), nullable=True),
+    sa.Column('diagnosis', sa.JSON(), nullable=True),
+    sa.Column('priority', sa.String(length=50), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['dog_id'], ['dogs.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_submissions_dog_id'), 'submissions', ['dog_id'], unique=False)
+    op.create_index(op.f('ix_submissions_id'), 'submissions', ['id'], unique=True)
+    op.create_index('ix_submissions_user_dog_status', 'submissions', ['user_id', 'dog_id', 'status'], unique=False)
+    op.create_index(op.f('ix_submissions_user_id'), 'submissions', ['user_id'], unique=False)
     op.create_table('todos',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('dog_id', sa.UUID(), nullable=False),
@@ -211,6 +233,23 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_wins_dog_id'), 'wins', ['dog_id'], unique=False)
     op.create_index(op.f('ix_wins_id'), 'wins', ['id'], unique=True)
+    op.create_table('admin_notifications',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('target_user_id', sa.UUID(), nullable=True),
+    sa.Column('submission_id', sa.UUID(), nullable=True),
+    sa.Column('title', sa.String(length=200), nullable=False),
+    sa.Column('message', sa.Text(), nullable=False),
+    sa.Column('is_read', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['submission_id'], ['submissions.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['target_user_id'], ['users.id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_admin_notifications_id'), 'admin_notifications', ['id'], unique=True)
+    op.create_index(op.f('ix_admin_notifications_submission_id'), 'admin_notifications', ['submission_id'], unique=False)
+    op.create_index('ix_admin_notifications_target_read', 'admin_notifications', ['target_user_id', 'is_read'], unique=False)
+    op.create_index(op.f('ix_admin_notifications_target_user_id'), 'admin_notifications', ['target_user_id'], unique=False)
     op.create_table('dog_badges',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('dog_id', sa.UUID(), nullable=False),
@@ -240,6 +279,11 @@ def downgrade() -> None:
     op.drop_index('ix_dog_badges_dog_badge', table_name='dog_badges')
     op.drop_index(op.f('ix_dog_badges_badge_id'), table_name='dog_badges')
     op.drop_table('dog_badges')
+    op.drop_index(op.f('ix_admin_notifications_target_user_id'), table_name='admin_notifications')
+    op.drop_index('ix_admin_notifications_target_read', table_name='admin_notifications')
+    op.drop_index(op.f('ix_admin_notifications_submission_id'), table_name='admin_notifications')
+    op.drop_index(op.f('ix_admin_notifications_id'), table_name='admin_notifications')
+    op.drop_table('admin_notifications')
     op.drop_index(op.f('ix_wins_id'), table_name='wins')
     op.drop_index(op.f('ix_wins_dog_id'), table_name='wins')
     op.drop_table('wins')
@@ -248,6 +292,11 @@ def downgrade() -> None:
     op.drop_index('ix_todos_dog_status_due', table_name='todos')
     op.drop_index(op.f('ix_todos_dog_id'), table_name='todos')
     op.drop_table('todos')
+    op.drop_index(op.f('ix_submissions_user_id'), table_name='submissions')
+    op.drop_index('ix_submissions_user_dog_status', table_name='submissions')
+    op.drop_index(op.f('ix_submissions_id'), table_name='submissions')
+    op.drop_index(op.f('ix_submissions_dog_id'), table_name='submissions')
+    op.drop_table('submissions')
     op.drop_index(op.f('ix_dog_protocols_protocol_id'), table_name='dog_protocols')
     op.drop_index(op.f('ix_dog_protocols_id'), table_name='dog_protocols')
     op.drop_index(op.f('ix_dog_protocols_dog_id'), table_name='dog_protocols')

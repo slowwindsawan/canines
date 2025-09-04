@@ -304,6 +304,7 @@ const Intake: React.FC = () => {
     }
 
     try {
+      setIsSubmitting(true);
       // Build payload from formFields
       const payload = {
         name: formFields.find((f) => f.name === "name")?.value || "Unknown",
@@ -338,6 +339,7 @@ const Intake: React.FC = () => {
     } catch (err) {
       alert("An error occurred while updating the dog.");
     }
+    setIsSubmitting(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -360,6 +362,7 @@ const Intake: React.FC = () => {
         stoolType: String(getFieldValueByName("stoolType") || "Unknown"),
         symptoms: getFieldValueByName("symptoms") || [],
         behaviorNotes: String(getFieldValueByName("behaviorNotes") || ""),
+        id: id
       };
 
       // You can replace this simulated delay with a real API call if needed
@@ -370,6 +373,7 @@ const Intake: React.FC = () => {
         breed: dogPayload.breed,
         weight_kg: dogPayload.weight > 0 ? dogPayload.weight : undefined,
         notes: dogPayload.behaviorNotes || undefined,
+        id: dogPayload.id,
         form_data: {
           age: dogPayload.age,
           stoolType: dogPayload.stoolType,
@@ -381,6 +385,7 @@ const Intake: React.FC = () => {
 
       // assume jwtRequest(path, method, body)
       const response = await jwtRequest("/dogs/create-dog", "POST", apiPayload);
+      console.warn(response)
 
       if (response && response.success) {
         // success path

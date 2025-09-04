@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from app.auth_config import SECRET_KEY, ALGORITHM
-from routes import auth, formbuilder, dogs
+from routes import auth, formbuilder, dogs, submissions
 from app import models
 import uvicorn
 from app.dependecies import get_current_user
@@ -12,7 +12,7 @@ app = FastAPI()
 app.include_router(auth.router)
 app.include_router(formbuilder.router)
 app.include_router(dogs.router)
-
+app.include_router(submissions.router)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,

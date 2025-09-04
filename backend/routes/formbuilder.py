@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
@@ -52,6 +53,7 @@ def get_onboarding_form(db: Session = Depends(get_db)):
     Fetch the universal onboarding form.
     Returns an empty array if no row exists or json_data is null.
     """
+    print("Onboarding form ",db.query(models.OnboardingForm).first().json_data)
     form = db.query(models.OnboardingForm).first()
     
     json_data = form.json_data if form and form.json_data is not None else []

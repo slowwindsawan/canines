@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, Dict
 from uuid import UUID
 from typing import Optional
 from datetime import datetime
@@ -43,3 +43,74 @@ class DogCreate(BaseModel):
     weight_kg: Optional[float] = None
     notes: Optional[str] = None
     form_data: Optional[dict] = None
+    overview: Optional[dict] = None
+    protocol: Optional[dict] = None
+    admin: Optional[bool] = False
+    status: Optional[str] = "in_review"  # default status
+
+class Dog(BaseModel):
+    id: UUID
+    name: str
+    breed: Optional[str]
+    sex: Optional[str]
+    weight_kg: Optional[float]
+    form_data: Optional[dict]
+    overview: Optional[dict]
+    protocol: Optional[dict]
+    status: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+class SubmissionOut(BaseModel):
+    id: str
+    user_id: str
+    dog_id: str
+    behaviour_note: str | None
+    status: str
+    symptoms: dict | None
+    priority: str | None
+    confidence: int | None
+    diagnosis: dict | None
+    created_at: str
+    updated_at: str
+
+    # Related info
+    username: str | None
+    name: str | None
+    email: str | None
+    dog: dict | None
+
+    class Config:
+        orm_mode = True
+
+    @classmethod
+    def from_orm_with_relations(cls, obj):
+        return cls(
+            id=str(obj.id),
+            user_id=str(obj.user_id),
+            dog_id=str(obj.dog_id),
+            behaviour_note=obj.behaviour_note,
+            status=obj.status,
+            symptoms=obj.symptoms,
+            confidence=obj.confidence,
+            diagnosis=obj.diagnosis,
+            priority=obj.priority,
+            # Convert datetime to ISO string
+            created_at=obj.created_at.isoformat() if obj.created_at else None,
+            updated_at=obj.updated_at.isoformat() if obj.updated_at else None,
+            username=obj.user.username if obj.user else None,
+            name=obj.user.name if obj.user else None,
+            email=obj.user.email if obj.user else None,
+            dog={
+                "id": str(obj.dog.id),
+                "name": obj.dog.name,
+                "breed": obj.dog.breed,
+                "sex": obj.dog.sex,
+                "weight_kg": obj.dog.weight_kg,
+                "form_data": obj.dog.form_data,
+                "overview": obj.dog.overview,
+                "protocol": obj.dog.protocol,
+                "status": obj.dog.status,
+            } if obj.dog else None
+        )
