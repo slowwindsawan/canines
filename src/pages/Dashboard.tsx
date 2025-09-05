@@ -115,10 +115,10 @@ const Dashboard: React.FC = () => {
 
   const {
     register,
-    handleSubmit,
     formState: { errors },
     setValue,
     watch,
+    handleSubmit,
     reset,
   } = useForm<ProgressFormData>({
     resolver: zodResolver(progressSchema),
@@ -246,28 +246,44 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const onSubmitProgress = async (data: ProgressFormData) => {
+  const onSubmitProgress = async (data) => {
+    
     if (!selectedDog) {
       alert("Please select a dog first");
       return;
     }
 
     setIsSubmittingProgress(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const newEntry = {
       id: Date.now().toString(),
       dogId: selectedDog.id,
       date: new Date().toISOString().split("T")[0],
-      symptoms: data.symptoms,
+      symptoms: watchedSymptoms, // or data.symptoms if you wire it
       notes: data.notes,
-      improvementScore: data.improvementScore,
+      improvementScore: watchedScore,
     };
 
-    setProgressData([newEntry, ...progressData]);
-    reset();
-    setShowProgressForm(false);
-    setIsSubmittingProgress(false);
+    try {
+      // send to backend
+      const response = await jwtRequest(
+        `/submissions/progress/${selectedDog.id}`,
+        "POST",
+        newEntry // ✅ no JSON.stringify needed
+      );
+
+      // update local state with new entry
+     if(true){
+      alert("Successfully submitted.")
+      setSelectedDog({...selectDog, progress: response})
+     }
+      setShowProgressForm(false);
+    } catch (err) {
+      console.error("Error submitting progress:", err);
+      alert("Failed to submit progress");
+    } finally {
+      setIsSubmittingProgress(false);
+    }
   };
 
   const getScoreColor = (score: number) => {
@@ -601,266 +617,522 @@ const Dashboard: React.FC = () => {
           <>
             {/* Tab Navigation */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
-              <div className="border-b border-gray-200">
-                <nav className="flex space-x-8 px-6">
-                  <button
-                    onClick={() => setActiveTab("overview")}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                      activeTab === "overview"
-                        ? "border-brand-charcoal"
-                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }`}
-                  >
-                    Overview
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("protocol")}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                      activeTab === "protocol"
-                        ? "text-brand-charcol border-brand-charcoal"
-                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }`}
-                  >
-                    Gut Health Protocol
-                  </button>
-                  <div className="relative inline-block group">
-                    <button
-                      onClick={() => setActiveTab("tracker")}
-                      className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center ${
-                        activeTab === "tracker"
-                          ? "text-brand-charcoal border-brand-charcoal"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                      }`}
-                    >
-                      Progress Tracker
-                      <Lock
-                        className="ml-2 text-bold text-brand-midgrey"
-                        size={15}
-                      />
-                    </button>
+              {selectedDog?.status == "in_review" ? (
+                <></>
+              ) : (
+                <>
+                  <div className="border-b border-gray-200">
+                    <nav className="flex space-x-8 px-6">
+                      <button
+                        onClick={() => setActiveTab("overview")}
+                        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                          activeTab === "overview"
+                            ? "border-brand-charcoal"
+                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        }`}
+                      >
+                        Overview
+                      </button>
+                      <button
+                        onClick={() => setActiveTab("protocol")}
+                        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                          activeTab === "protocol"
+                            ? "text-brand-charcol border-brand-charcoal"
+                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        }`}
+                      >
+                        Gut Health Protocol
+                      </button>
+                      <div className="relative inline-block group">
+                        <button
+                          onClick={() => setActiveTab("tracker")}
+                          className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center ${
+                            activeTab === "tracker"
+                              ? "text-brand-charcoal border-brand-charcoal"
+                              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                          }`}
+                        >
+                          Progress Tracker
+                          <Lock
+                            className="ml-2 text-bold text-brand-midgrey"
+                            size={15}
+                          />
+                        </button>
 
-                    {/* Popover */}
-                    <div
-                      className="absolute top-full -left-60 bg-white shadow-lg rounded-lg border border-gray-200 p-4 text-sm z-50 w-80 
+                        {/* Popover */}
+                        <div
+                          className="absolute top-full -left-60 bg-white shadow-lg rounded-lg border border-gray-200 p-4 text-sm z-50 w-80 
   opacity-0 scale-95 invisible 
   group-hover:opacity-100 group-hover:scale-100 group-hover:visible 
   transition-all duration-300 ease-out origin-top"
-                    >
-                      <h3 className="font-semibold text-gray-800 mb-3">
-                        Compare plans and features
-                      </h3>
+                        >
+                          <h3 className="font-semibold text-gray-800 mb-3">
+                            Compare plans and features
+                          </h3>
 
-                      <div className="space-y-3">
-                        {/* Foundation Plan */}
-                        <div className="border rounded-lg p-3 hover:shadow-md transition-shadow duration-200">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="font-medium">Foundation</span>
-                            <span className="text-gray-500">$29/mo</span>
-                          </div>
-                          <ul className="list-disc list-inside text-gray-600 text-xs space-y-1">
-                            <li>AI gut plan</li>
-                            <li>Tips</li>
-                            <li>Library</li>
-                            <li>Guides</li>
-                          </ul>
-                        </div>
+                          <div className="space-y-3">
+                            {/* Foundation Plan */}
+                            <div className="border rounded-lg p-3 hover:shadow-md transition-shadow duration-200">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-medium">Foundation</span>
+                                <span className="text-gray-500">$29/mo</span>
+                              </div>
+                              <ul className="list-disc list-inside text-gray-600 text-xs space-y-1">
+                                <li>AI gut plan</li>
+                                <li>Tips</li>
+                                <li>Library</li>
+                                <li>Guides</li>
+                              </ul>
+                            </div>
 
-                        {/* Therapeutic Plan */}
-                        <div className="border-2 border-green-500 rounded-lg p-3 bg-green-50 hover:shadow-md transition-shadow duration-200">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="font-semibold text-green-700">
-                              Therapeutic Plan (Recommended)
-                            </span>
-                            <span className="text-green-700 font-medium">
-                              $69/mo
-                            </span>
-                          </div>
-                          <ul className="list-disc list-inside text-gray-700 text-xs space-y-1">
-                            <li>Foundations +</li>
-                            <li>Weekly meal plans</li>
-                            <li>Symptom tracker charts</li>
-                            <li>Supplement cycling</li>
-                            <li>Phase upgrade request</li>
-                          </ul>
-                        </div>
+                            {/* Therapeutic Plan */}
+                            <div className="border-2 border-green-500 rounded-lg p-3 bg-green-50 hover:shadow-md transition-shadow duration-200">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-semibold text-green-700">
+                                  Therapeutic Plan (Recommended)
+                                </span>
+                                <span className="text-green-700 font-medium">
+                                  $69/mo
+                                </span>
+                              </div>
+                              <ul className="list-disc list-inside text-gray-700 text-xs space-y-1">
+                                <li>Foundations +</li>
+                                <li>Weekly meal plans</li>
+                                <li>Symptom tracker charts</li>
+                                <li>Supplement cycling</li>
+                                <li>Phase upgrade request</li>
+                              </ul>
+                            </div>
 
-                        {/* Comprehensive Plan */}
-                        <div className="border rounded-lg p-3 hover:shadow-md transition-shadow duration-200">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="font-medium">
-                              Comprehensive Plan
-                            </span>
-                            <span className="text-gray-500">$149/mo</span>
+                            {/* Comprehensive Plan */}
+                            <div className="border rounded-lg p-3 hover:shadow-md transition-shadow duration-200">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-medium">
+                                  Comprehensive Plan
+                                </span>
+                                <span className="text-gray-500">$149/mo</span>
+                              </div>
+                              <ul className="list-disc list-inside text-gray-600 text-xs space-y-1">
+                                <li>Therapeutic +</li>
+                                <li>Live group calls</li>
+                                <li>Personalised AI-human reviews</li>
+                                <li>Discount on 1:1 consult</li>
+                              </ul>
+                            </div>
                           </div>
-                          <ul className="list-disc list-inside text-gray-600 text-xs space-y-1">
-                            <li>Therapeutic +</li>
-                            <li>Live group calls</li>
-                            <li>Personalised AI-human reviews</li>
-                            <li>Discount on 1:1 consult</li>
-                          </ul>
                         </div>
                       </div>
-                    </div>
+                    </nav>
                   </div>
-                </nav>
-              </div>
+                </>
+              )}
 
               {/* Tab Content */}
-              <div className="p-6">
-                {/* Overview Tab */}
-                {activeTab === "overview" && (
-                  <div className="space-y-8">
-                    {/* Today's Meal Plan */}
-                    <div>
-                      <div className="flex items-center space-x-2 mb-6">
-                        <img src={dishIcon} style={{ height: "52px" }} />
-                        <h2 className="text-xl font-bold text-gray-900 ">
-                          Today's Meal Plan
-                        </h2>
-                        <div className="flex items-center space-x-2 bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                          <Clock className="h-4 w-4" />
-                          <span>
-                            Phase: Reset - calming the storm in the gut - 56%
-                          </span>
-                        </div>
+              {selectedDog?.status == "in_review" ? (
+                <>
+                  <section
+                    className="flex items-center justify-center p-8"
+                    role="region"
+                    aria-labelledby="submission-status-heading"
+                  >
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="max-w-3xl bg-white/95 backdrop-blur-sm border border-gray-100 rounded-3xl p-4 text-center"
+                    >
+                      {/* Top badge */}
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-sm font-semibold mb-4">
+                        <svg
+                          className="w-4 h-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          aria-hidden
+                        >
+                          <path
+                            d="M12 2v6"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M6 10v6a6 6 0 006 6v0a6 6 0 006-6v-6"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Submitted for review
                       </div>
 
-                      <p className="mb-4 text-sm">
-                        Estimated time: 9 days, Next review: 03/05/2026
+                      {/* Hero graphic */}
+                      <div className="mx-auto w-28 h-28 rounded-full bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center mb-4 shadow-md">
+                        <svg
+                          viewBox="0 0 48 48"
+                          className="w-16 h-16 animate-pulse"
+                          aria-hidden
+                        >
+                          <path
+                            d="M24 30c-3 0-5 2-5 5s2 5 5 5 5-2 5-5-2-5-5-5z"
+                            fill="#FB923C"
+                          />
+                          <path
+                            d="M16 18c-1.4-1.6-4-1.8-5.6-.4-1.6 1.4-1.8 3.9-.4 5.5 1.4 1.6 4 1.8 5.6.4 1.6-1.4 1.8-3.9.4-5.5zM40 18c-1.4-1.6-4-1.8-5.6-.4-1.6 1.4-1.8 3.9-.4 5.5 1.4 1.6 4 1.8 5.6.4 1.6-1.4 1.8-3.9.4-5.5zM29 13c-.9-1-2.6-1-3.5 0-.9 1-1 2.5 0 3.5 1 1 2.6 1 3.5 0 .9-1 1-2.5 0-3.5z"
+                            fill="#FDE68A"
+                          />
+                        </svg>
+                      </div>
+
+                      {/* Title & description */}
+                      <h2
+                        id="submission-status-heading"
+                        className="text-2xl font-semibold text-slate-800 mb-2"
+                      >
+                        Your request is in review
+                      </h2>
+
+                      <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                        Thanks — we've received your application. A qualified
+                        vet is now reviewing the submission and any attached
+                        files. You will receive a clear diagnosis and care
+                        recommendations as soon as the review is complete. We
+                        know waiting can be hard — we’re working to get it
+                        right.
                       </p>
-                      {console.log(selectedDog)}
-                      {selectedDog?.overview &&
-                      selectedDog?.overview?.daily_meal_plan ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-4 border border-orange-200">
-                            <h3 className="font-semibold text-gray-900 mb-2 flex items-center ">
-                              <span className="text-orange-500 mr-2">
-                                <Bone />
-                              </span>
-                              Breakfast
-                            </h3>
-                            <p className="text-gray-700 text-sm">
-                              {selectedDog?.overview?.daily_meal_plan?.map(
-                                (element, index) =>
-                                  element.title === "Breakfast" ? (
-                                    <span key={index}>
-                                      {element.description}
-                                    </span>
-                                  ) : null
-                              )}
-                            </p>
-                          </div>
 
-                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                            <h3 className="font-semibold text-gray-900 mb-2 flex items-center ">
-                              <span className="text-blue-500 mr-2">
-                                <Carrot />
-                              </span>
-                              Dinner
-                            </h3>
-                            <p className="text-gray-700 text-sm">
-                              {selectedDog?.overview?.daily_meal_plan?.map(
-                                (element, index) =>
-                                  element.title === "Dinner" ? (
-                                    <span key={index}>
-                                      {element.description}
-                                    </span>
-                                  ) : (
-                                    <></>
-                                  )
-                              )}
-                            </p>
+                      {/* Progress / steps */}
+                      <div className="w-full bg-gray-50 rounded-xl p-4 mb-4">
+                        <ol className="flex items-center justify-between text-left gap-3">
+                          {/* Step 1 */}
+                          <li className="flex-1">
+                            <div className="flex items-start gap-3">
+                              <div className="flex-none">
+                                <div
+                                  className="w-9 h-9 rounded-full flex items-center justify-center bg-emerald-100 text-emerald-700 font-semibold"
+                                  aria-hidden
+                                >
+                                  ✓
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-slate-800">
+                                  Submitted
+                                </div>
+                                <div className="text-xs text-slate-400">
+                                  We've received your request
+                                </div>
+                              </div>
+                            </div>
+                          </li>
+
+                          {/* Step 2 - current */}
+                          <li className="flex-1" aria-current="step">
+                            <div className="flex items-start gap-3">
+                              <div className="flex-none">
+                                <div
+                                  className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-50 text-amber-700 font-semibold animate-pulse"
+                                  title="In review"
+                                  aria-hidden
+                                >
+                                  …
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-slate-800">
+                                  In review
+                                </div>
+                                <div className="text-xs text-slate-400">
+                                  A vet is evaluating the case
+                                </div>
+                              </div>
+                            </div>
+                          </li>
+
+                          {/* Step 3 */}
+                          <li className="flex-1">
+                            <div className="flex items-start gap-3">
+                              <div className="flex-none">
+                                <div
+                                  className="w-9 h-9 rounded-full flex items-center justify-center bg-slate-100 text-slate-400 font-semibold"
+                                  aria-hidden
+                                >
+                                  ⟳
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-slate-800">
+                                  Diagnosis ready
+                                </div>
+                                <div className="text-xs text-slate-400">
+                                  You'll get results & next steps
+                                </div>
+                              </div>
+                            </div>
+                          </li>
+                        </ol>
+                      </div>
+
+                      {/* Helpful details */}
+                      <div className="text-left text-xs text-slate-500 mb-6 space-y-3">
+                        <div className="flex items-start gap-3">
+                          <svg
+                            className="w-4 h-4 mt-1 flex-none"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden
+                          >
+                            <path
+                              d="M3 12h18"
+                              stroke="currentColor"
+                              strokeWidth="1.2"
+                              strokeLinecap="round"
+                            />
+                            <path
+                              d="M12 3v18"
+                              stroke="currentColor"
+                              strokeWidth="1.2"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <div>
+                            <div className="font-medium text-slate-700">
+                              What happens next
+                            </div>
+                            <div className="text-slate-400">
+                              Vet review → lab checks (if needed) → diagnosis &
+                              recommendations
+                            </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="text-center py-8 bg-gray-50 rounded-lg">
-                          <Utensils className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <h3 className="text-lg font-medium text-gray-900 mb-2 ">
-                            We haven’t built Maple’s plan yet. let’s fix that.
-                            Start your gut check now.
+
+                        <div className="flex items-start gap-3">
+                          <svg
+                            className="w-4 h-4 mt-1 flex-none"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden
+                          >
+                            <path
+                              d="M12 8v4l3 3"
+                              stroke="currentColor"
+                              strokeWidth="1.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="9"
+                              stroke="currentColor"
+                              strokeWidth="1.2"
+                            />
+                          </svg>
+                          <div>
+                            <div className="font-medium text-slate-700">
+                              Typical turnaround
+                            </div>
+                            <div className="text-slate-400">
+                              Most cases complete within 24–72 hours. Complex
+                              cases may take longer.
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <svg
+                            className="w-4 h-4 mt-1 flex-none"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden
+                          >
+                            <path
+                              d="M12 2l2 5h5l-4 3 2 5-5-3-5 3 2-5-4-3h5z"
+                              stroke="currentColor"
+                              strokeWidth="1.1"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <div>
+                            <div className="font-medium text-slate-700">
+                              Reference
+                            </div>
+                            <div className="text-slate-400">
+                              Ref: PC-3491 — keep this for follow-ups
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-400 mt-4">
+                        Please be patient — we're improving too. You'll be
+                        notified as soon as the diagnosis is ready.
+                      </p>
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <>
+                  <div className="p-6">
+                    {/* Overview Tab */}
+                    {activeTab === "overview" && (
+                      <div className="space-y-8">
+                        {/* Today's Meal Plan */}
+                        <div>
+                          <div className="flex items-center space-x-2 mb-6">
+                            <img src={dishIcon} style={{ height: "52px" }} />
+                            <h2 className="text-xl font-bold text-gray-900 ">
+                              Today's Meal Plan
+                            </h2>
+                            <div className="flex items-center space-x-2 bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+                              <Clock className="h-4 w-4" />
+                              <span>
+                                Phase: Reset - calming the storm in the gut -
+                                56%
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="mb-4 text-sm">
+                            Estimated time: 9 days, Next review: 03/05/2026
+                          </p>
+                          {console.log(selectedDog)}
+                          {selectedDog?.overview &&
+                          selectedDog?.overview?.daily_meal_plan ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-4 border border-orange-200">
+                                <h3 className="font-semibold text-gray-900 mb-2 flex items-center ">
+                                  <span className="text-orange-500 mr-2">
+                                    <Bone />
+                                  </span>
+                                  Breakfast
+                                </h3>
+                                <p className="text-gray-700 text-sm">
+                                  {selectedDog?.overview?.daily_meal_plan?.map(
+                                    (element, index) =>
+                                      element.title === "Breakfast" ? (
+                                        <span key={index}>
+                                          {element.description}
+                                        </span>
+                                      ) : null
+                                  )}
+                                </p>
+                              </div>
+
+                              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                                <h3 className="font-semibold text-gray-900 mb-2 flex items-center ">
+                                  <span className="text-blue-500 mr-2">
+                                    <Carrot />
+                                  </span>
+                                  Dinner
+                                </h3>
+                                <p className="text-gray-700 text-sm">
+                                  {selectedDog?.overview?.daily_meal_plan?.map(
+                                    (element, index) =>
+                                      element.title === "Dinner" ? (
+                                        <span key={index}>
+                                          {element.description}
+                                        </span>
+                                      ) : (
+                                        <></>
+                                      )
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 bg-gray-50 rounded-lg">
+                              <Utensils className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <h3 className="text-lg font-medium text-gray-900 mb-2 ">
+                                We haven’t built Maple’s plan yet. let’s fix
+                                that. Start your gut check now.
+                              </h3>
+                              <p className="text-gray-600 mb-4">
+                                Complete a health assessment to get a
+                                personalized meal plan for {selectedDog.name}
+                              </p>
+                              <Link
+                                to={"/intake?id=" + selectedDog?.id}
+                                className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
+                              >
+                                <Plus className="h-4 w-4" />
+                                <span>Start Assessment</span>
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Gut check */}
+                        <>
+                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <div className="text-center">
+                              <div className="flex justify-center mb-4">
+                                <img
+                                  src={dogIcon}
+                                  className="w-[160px] h-auto"
+                                />
+                              </div>
+                              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                                How's {selectedDog.name} doing today?
+                              </h2>
+                              <p className="text-gray-600 mb-6">
+                                Quick daily check-in to track {selectedDog.name}
+                                's progress
+                              </p>
+                              <button
+                                onClick={() =>
+                                  navigate("/intake?id=" + selectedDog?.id)
+                                }
+                                className="bg-gradient-to-r from-pink-600 to-rose-600 text-white px-6 py-3 rounded-lg font-medium hover:from-pink-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-[1.02] flex items-center space-x-2 mx-auto"
+                              >
+                                <span>Start Gut Check</span>
+                                <ArrowRight className="h-5 w-5" />
+                              </button>
+                            </div>
+                          </div>
+                        </>
+
+                        {/* Wins tracker */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            Quick Wins Tracker
                           </h3>
-                          <p className="text-gray-600 mb-4">
-                            Complete a health assessment to get a personalized
-                            meal plan for {selectedDog.name}
-                          </p>
-                          <Link
-                            to={"/intake?id=" + selectedDog?.id}
-                            className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
-                          >
-                            <Plus className="h-4 w-4" />
-                            <span>Start Assessment</span>
-                          </Link>
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Gut check */}
-                    <>
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="text-center">
-                          <div className="flex justify-center mb-4">
-                            <img src={dogIcon} className="w-[160px] h-auto" />
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="text-center">
+                              <div className="w-16 h-16 bg-brand-offwhite rounded-full flex items-center justify-center mx-auto mb-2">
+                                <img src={stoolIcon} />
+                              </div>
+                              <h4 className="font-medium text-gray-900">
+                                Stool Quality
+                              </h4>
+                              <p className="text-sm text-gray-600">Improving</p>
+                            </div>
+
+                            <div className="text-center">
+                              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <img src={energyIcon} />
+                              </div>
+                              <h4 className="font-medium text-gray-900">
+                                Energy Level
+                              </h4>
+                              <p className="text-sm text-gray-600">Stable</p>
+                            </div>
+
+                            <div className="text-center">
+                              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <img src={healthIcon} />
+                              </div>
+                              <h4 className="font-medium text-gray-900">
+                                Overall Health
+                              </h4>
+                              <p className="text-sm text-gray-600">Good</p>
+                            </div>
                           </div>
-                          <h2 className="text-xl font-bold text-gray-900 mb-2">
-                            How's {selectedDog.name} doing today?
-                          </h2>
-                          <p className="text-gray-600 mb-6">
-                            Quick daily check-in to track {selectedDog.name}'s
-                            progress
-                          </p>
-                          <button
-                            onClick={() =>
-                              navigate("/intake?id=" + selectedDog?.id)
-                            }
-                            className="bg-gradient-to-r from-pink-600 to-rose-600 text-white px-6 py-3 rounded-lg font-medium hover:from-pink-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-[1.02] flex items-center space-x-2 mx-auto"
-                          >
-                            <span>Start Gut Check</span>
-                            <ArrowRight className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </div>
-                    </>
-
-                    {/* Wins tracker */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                        Quick Wins Tracker
-                      </h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-brand-offwhite rounded-full flex items-center justify-center mx-auto mb-2">
-                            <img src={stoolIcon} />
-                          </div>
-                          <h4 className="font-medium text-gray-900">
-                            Stool Quality
-                          </h4>
-                          <p className="text-sm text-gray-600">Improving</p>
                         </div>
 
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                            <img src={energyIcon} />
-                          </div>
-                          <h4 className="font-medium text-gray-900">
-                            Energy Level
-                          </h4>
-                          <p className="text-sm text-gray-600">Stable</p>
-                        </div>
-
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                            <img src={healthIcon} />
-                          </div>
-                          <h4 className="font-medium text-gray-900">
-                            Overall Health
-                          </h4>
-                          <p className="text-sm text-gray-600">Good</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* <div>
+                        {/* <div>
                       <h2 className="text-xl font-bold text-gray-900 mb-6 ">
                         How Maple’s Doing
                       </h2>
@@ -981,929 +1253,947 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div> */}
 
-                    {/* Next steps */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                          <ArrowRight className="h-6 w-6 text-blue-600 mr-2" />
-                          What to do now (Goals)
-                        </h2>
-                        <div className="text-sm text-gray-600">
-                          {completedCount}/
-                          {selectedDog?.overview?.what_to_do_goals.length}{" "}
-                          completed
-                        </div>
-                      </div>
+                        {/* Next steps */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                          <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                              <ArrowRight className="h-6 w-6 text-blue-600 mr-2" />
+                              What to do now (Goals)
+                            </h2>
+                            <div className="text-sm text-gray-600">
+                              {completedCount}/
+                              {selectedDog?.overview?.what_to_do_goals.length}{" "}
+                              completed
+                            </div>
+                          </div>
 
-                      {/* Progress Bar */}
-                      <div className="mb-6">
-                        <div className="flex justify-between text-sm text-gray-600 mb-2">
-                          <span>Progress</span>
-                          <span>
-                            {Math.round(
-                              (completedCount /
-                                selectedDog?.overview?.what_to_do_goals
-                                  .length) *
-                                100
-                            )}
-                            %
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-lime-600 to-brand-charcoal h-2 rounded-full transition-all duration-300"
-                            style={{
-                              width: `${
-                                (completedCount /
-                                  selectedDog?.overview?.what_to_do_goals
-                                    .length) *
-                                100
-                              }%`,
-                            }}
-                          ></div>
-                        </div>
-                      </div>
+                          {/* Progress Bar */}
+                          <div className="mb-6">
+                            <div className="flex justify-between text-sm text-gray-600 mb-2">
+                              <span>Progress</span>
+                              <span>
+                                {Math.round(
+                                  (completedCount /
+                                    selectedDog?.overview?.what_to_do_goals
+                                      .length) *
+                                    100
+                                )}
+                                %
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-gradient-to-r from-lime-600 to-brand-charcoal h-2 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${
+                                    (completedCount /
+                                      selectedDog?.overview?.what_to_do_goals
+                                        .length) *
+                                    100
+                                  }%`,
+                                }}
+                              ></div>
+                            </div>
+                          </div>
 
-                      {/* Steps List */}
-                      <div className="space-y-4">
-                        {selectedDog?.overview?.what_to_do_goals.map((step) => {
-                          const isOverdue =
-                            step.due_date &&
-                            new Date(step.due_date) < new Date() &&
-                            !step.completed;
+                          {/* Steps List */}
+                          <div className="space-y-4">
+                            {selectedDog?.overview?.what_to_do_goals.map(
+                              (step) => {
+                                const isOverdue =
+                                  step.due_date &&
+                                  new Date(step.due_date) < new Date() &&
+                                  !step.completed;
 
-                          return (
-                            <div
-                              key={step.id}
-                              className={`border-l-4 rounded-lg p-4 transition-all duration-200 ${
-                                step.completed
-                                  ? "border-l-green-500 bg-green-50 opacity-75"
-                                  : getPriorityColor(step.priority)
-                              } ${isOverdue ? "ring-2 ring-red-200" : ""}`}
-                            >
-                              <div className="flex items-start space-x-4">
-                                <button
-                                  onClick={() => {
-                                    toggleStepCompletion(step.id || "");
-                                    !step.completed
-                                      ? setShowBadgeSuccessPopup(true)
-                                      : null;
-                                  }}
-                                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                                    step.completed
-                                      ? "bg-green-600 border-green-600 text-white"
-                                      : "border-gray-300 hover:border-green-500"
-                                  }`}
-                                >
-                                  {step.completed && (
-                                    <CheckCircle className="h-4 w-4" />
-                                  )}
-                                </button>
+                                return (
+                                  <div
+                                    key={step.id}
+                                    className={`border-l-4 rounded-lg p-4 transition-all duration-200 ${
+                                      step.completed
+                                        ? "border-l-green-500 bg-green-50 opacity-75"
+                                        : getPriorityColor(step.priority)
+                                    } ${
+                                      isOverdue ? "ring-2 ring-red-200" : ""
+                                    }`}
+                                  >
+                                    <div className="flex items-start space-x-4">
+                                      <button
+                                        onClick={() => {
+                                          toggleStepCompletion(step.id || "");
+                                          !step.completed
+                                            ? setShowBadgeSuccessPopup(true)
+                                            : null;
+                                        }}
+                                        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                                          step.completed
+                                            ? "bg-green-600 border-green-600 text-white"
+                                            : "border-gray-300 hover:border-green-500"
+                                        }`}
+                                      >
+                                        {step.completed && (
+                                          <CheckCircle className="h-4 w-4" />
+                                        )}
+                                      </button>
 
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center space-x-2 mb-1">
-                                    {/* <IconComponent
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center space-x-2 mb-1">
+                                          {/* <IconComponent
                                       className={`h-4 w-4 ${
                                         step.completed
                                           ? "text-green-600"
                                           : "text-gray-600"
                                       }`}
                                     /> */}
-                                    <h3
-                                      className={`font-medium ${
-                                        step.completed
-                                          ? "text-green-800 line-through"
-                                          : "text-gray-900"
-                                      }`}
-                                    >
-                                      {step.title}
-                                    </h3>
-                                    {step.priority === "high" &&
-                                      !step.completed && (
-                                        <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                          High Priority
-                                        </span>
-                                      )}
-                                    {isOverdue && (
-                                      <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                        Overdue
-                                      </span>
-                                    )}
-                                  </div>
+                                          <h3
+                                            className={`font-medium ${
+                                              step.completed
+                                                ? "text-green-800 line-through"
+                                                : "text-gray-900"
+                                            }`}
+                                          >
+                                            {step.title}
+                                          </h3>
+                                          {step.priority === "high" &&
+                                            !step.completed && (
+                                              <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                                                High Priority
+                                              </span>
+                                            )}
+                                          {isOverdue && (
+                                            <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                                              Overdue
+                                            </span>
+                                          )}
+                                        </div>
 
-                                  <p
-                                    className={`text-sm ${
-                                      step.completed
-                                        ? "text-green-700"
-                                        : "text-gray-600"
-                                    }`}
-                                  >
-                                    {step.description}
-                                  </p>
+                                        <p
+                                          className={`text-sm ${
+                                            step.completed
+                                              ? "text-green-700"
+                                              : "text-gray-600"
+                                          }`}
+                                        >
+                                          {step.description}
+                                        </p>
 
-                                  {step.due_date && !step.completed && (
-                                    <div className="flex items-center space-x-1 mt-2 text-xs text-gray-500">
-                                      <Clock className="h-3 w-3" />
-                                      <span>
-                                        Due:{" "}
-                                        {new Date(
-                                          step.due_date
-                                        ).toLocaleDateString()}
-                                      </span>
+                                        {step.due_date && !step.completed && (
+                                          <div className="flex items-center space-x-1 mt-2 text-xs text-gray-500">
+                                            <Clock className="h-3 w-3" />
+                                            <span>
+                                              Due:{" "}
+                                              {new Date(
+                                                step.due_date
+                                              ).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                  )}
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+
+                          {/* Encouragement Message */}
+                          {pendingSteps.length > 0 && (
+                            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-sm text-blue-800">
+                                <strong>Keep it up!</strong> You're doing great
+                                with {selectedDog.name}'s health journey.
+                                {pendingSteps.length === 1
+                                  ? " Just one more step to complete!"
+                                  : ` ${pendingSteps.length} steps remaining.`}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* All Complete Message */}
+                          {pendingSteps.length === 0 &&
+                            selectedDog?.overview?.what_to_do_goals.length >
+                              0 && (
+                              <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                                <div className="flex items-center space-x-2">
+                                  <CheckCircle className="h-5 w-5 text-green-600" />
+                                  <p className="text-sm text-green-800">
+                                    <strong>Excellent work!</strong> You've
+                                    completed all current action items for{" "}
+                                    {selectedDog.name}. New steps will appear as
+                                    you progress through the gut health
+                                    protocol.
+                                  </p>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Encouragement Message */}
-                      {pendingSteps.length > 0 && (
-                        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-sm text-blue-800">
-                            <strong>Keep it up!</strong> You're doing great with{" "}
-                            {selectedDog.name}'s health journey.
-                            {pendingSteps.length === 1
-                              ? " Just one more step to complete!"
-                              : ` ${pendingSteps.length} steps remaining.`}
-                          </p>
+                            )}
                         </div>
-                      )}
 
-                      {/* All Complete Message */}
-                      {pendingSteps.length === 0 &&
-                        selectedDog?.overview?.what_to_do_goals.length > 0 && (
-                          <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                            <div className="flex items-center space-x-2">
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                              <p className="text-sm text-green-800">
-                                <strong>Excellent work!</strong> You've
-                                completed all current action items for{" "}
-                                {selectedDog.name}. New steps will appear as you
-                                progress through the gut health protocol.
-                              </p>
+                        {/* Recent Activity and Health Summary */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <div className="flex items-center space-x-2 mb-6">
+                              <Calendar className="h-6 w-6 text-emerald-600" />
+                              <h3 className="text-xl font-semibold text-gray-900 ">
+                                Recent Activity
+                              </h3>
+                            </div>
+                            <div className="space-y-4">
+                              {Array.isArray(selectedDog?.activities) &&
+                                selectedDog?.activities?.map((entry, index) => (
+                                  <div
+                                    key={index}
+                                    className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg"
+                                  >
+                                    <div
+                                      className={`w-3 h-3 rounded-full mt-2 ${
+                                        entry.type === "consultation"
+                                          ? "bg-green-500"
+                                          : "bg-yellow-500"
+                                      }`}
+                                    ></div>
+                                    <div className="flex-1">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="text-sm font-medium text-gray-900">
+                                          {entry.title}
+                                        </p>
+                                        <span className="text-xs text-gray-500">
+                                          {new Date(
+                                            entry.timestamp
+                                          ).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-gray-600 line-clamp-2">
+                                        {entry.description}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+
+                              {!selectedDog?.activities &&
+                                !Array.isArray(selectedDog?.activities) && (
+                                  <div className="text-center py-8">
+                                    <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-gray-500 text-sm">
+                                      No activity logged yet
+                                    </p>
+                                  </div>
+                                )}
+                            </div>
+                          </div>
+
+                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <div className="flex items-center space-x-2 mb-6">
+                              <TrendingUp className="h-6 w-6 text-emerald-600" />
+                              <h3 className="text-xl font-semibold text-gray-900 ">
+                                Health Summary
+                              </h3>
+                            </div>
+                            <div className="space-y-6">
+                              <div>
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-sm font-medium text-gray-700">
+                                    Overall Progress
+                                  </span>
+                                  <span className="text-sm text-emerald-600 font-semibold">
+                                    {metrics.overallWellbeing}%
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3">
+                                  <div
+                                    className="bg-gradient-to-r bg-brand-charcoal bg-brand-midgrey h-3 rounded-full transition-all duration-500"
+                                    style={{
+                                      width: `${metrics.overallWellbeing}%`,
+                                    }}
+                                  ></div>
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-sm font-medium text-gray-700">
+                                    Treatment Adherence
+                                  </span>
+                                  <span className="text-sm text-blue-600 font-semibold">
+                                    {dogProgressData.length > 0 ? "92%" : "0%"}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3">
+                                  <div
+                                    className="bg-gradient-to-r bg-brand-charcoal bg-brand-midgrey h-3 rounded-full transition-all duration-500"
+                                    style={{
+                                      width:
+                                        dogProgressData.length > 0
+                                          ? "92%"
+                                          : "0%",
+                                    }}
+                                  ></div>
+                                </div>
+                              </div>
+
+                              {dogProgressData.length > 0 && (
+                                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-4">
+                                  <div className="flex items-center space-x-2 mb-2">
+                                    {getTrendIcon(metrics.recentTrend)}
+                                    <span className="text-sm font-medium text-gray-900">
+                                      Health Trend
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">
+                                    {selectedDog.name}'s health is currently{" "}
+                                    <span
+                                      className={`font-medium ${getTrendColor(
+                                        metrics.recentTrend
+                                      )}`}
+                                    >
+                                      {metrics.recentTrend}
+                                    </span>{" "}
+                                    based on recent assessments.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Protocol Tab */}
+                    {activeTab === "protocol" && (
+                      <div className="space-y-8">
+                        {/* AI Diagnosis Display */}
+                        {lastDiagnosisSubmission && (
+                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <div className="flex items-center space-x-2 mb-4">
+                              <MessageCircle className="h-6 w-6 text-purple-600" />
+                              <h3 className="text-xl font-semibold text-gray-900 ">
+                                AI Assessment
+                              </h3>
+                              <span className="text-sm text-gray-500">
+                                Confidence:{" "}
+                                {Math.round(
+                                  lastDiagnosisSubmission.aiDiagnosis
+                                    .confidence * 100
+                                )}
+                                %
+                              </span>
+                              {lastDiagnosisSubmission.isReevaluation && (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                  Re-evaluation
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <h4 className="font-medium text-gray-900 mb-2 ">
+                                  Primary Concerns
+                                </h4>
+                                <ul className="space-y-1">
+                                  {lastDiagnosisSubmission.aiDiagnosis.primaryConcerns.map(
+                                    (concern, index) => (
+                                      <li
+                                        key={index}
+                                        className="flex items-center space-x-2"
+                                      >
+                                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                                        <span className="text-sm text-gray-700">
+                                          {concern}
+                                        </span>
+                                      </li>
+                                    )
+                                  )}
+                                </ul>
+                              </div>
+
+                              <div>
+                                <h4 className="font-medium text-gray-900 mb-2 ">
+                                  AI Recommendations
+                                </h4>
+                                <ul className="space-y-1">
+                                  {lastDiagnosisSubmission.aiDiagnosis.recommendations
+                                    .slice(0, 3)
+                                    .map((rec, index) => (
+                                      <li
+                                        key={index}
+                                        className="flex items-start space-x-2"
+                                      >
+                                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                                        <span className="text-sm text-gray-700">
+                                          {rec}
+                                        </span>
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
                             </div>
                           </div>
                         )}
-                    </div>
 
-                    {/* Recent Activity and Health Summary */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center space-x-2 mb-6">
-                          <Calendar className="h-6 w-6 text-emerald-600" />
-                          <h3 className="text-xl font-semibold text-gray-900 ">
-                            Recent Activity
-                          </h3>
-                        </div>
-                        <div className="space-y-4">
-                          {dogProgressData.slice(0, 3).map((entry, index) => (
-                            <div
-                              key={entry.id}
-                              className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg"
-                            >
-                              <div
-                                className={`w-3 h-3 rounded-full mt-2 ${
-                                  entry.improvementScore >= 7
-                                    ? "bg-green-500"
-                                    : entry.improvementScore >= 5
-                                    ? "bg-yellow-500"
-                                    : "bg-red-500"
-                                }`}
-                              ></div>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-sm font-medium text-gray-900">
-                                    Gut Check #{dogProgressData.length - index}
-                                  </p>
-                                  <span className="text-xs text-gray-500">
-                                    {new Date(entry.date).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-600 line-clamp-2">
-                                  {entry.notes}
-                                </p>
-                                <div className="flex items-center space-x-2 mt-2">
-                                  <span className="text-xs text-gray-500">
-                                    Score:
-                                  </span>
-                                  <span
-                                    className={`text-xs font-medium ${
-                                      entry.improvementScore >= 7
-                                        ? "text-green-600"
-                                        : entry.improvementScore >= 5
-                                        ? "text-yellow-600"
-                                        : "text-red-600"
-                                    }`}
-                                  >
-                                    {entry.improvementScore}/10
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-
-                          {dogProgressData.length === 0 && (
-                            <div className="text-center py-8">
-                              <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                              <p className="text-gray-500 text-sm">
-                                No activity logged yet
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center space-x-2 mb-6">
-                          <TrendingUp className="h-6 w-6 text-emerald-600" />
-                          <h3 className="text-xl font-semibold text-gray-900 ">
-                            Health Summary
-                          </h3>
-                        </div>
-                        <div className="space-y-6">
-                          <div>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-sm font-medium text-gray-700">
-                                Overall Progress
-                              </span>
-                              <span className="text-sm text-emerald-600 font-semibold">
-                                {metrics.overallWellbeing}%
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3">
-                              <div
-                                className="bg-gradient-to-r bg-brand-charcoal bg-brand-midgrey h-3 rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${metrics.overallWellbeing}%`,
-                                }}
-                              ></div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-sm font-medium text-gray-700">
-                                Treatment Adherence
-                              </span>
-                              <span className="text-sm text-blue-600 font-semibold">
-                                {dogProgressData.length > 0 ? "92%" : "0%"}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3">
-                              <div
-                                className="bg-gradient-to-r bg-brand-charcoal bg-brand-midgrey h-3 rounded-full transition-all duration-500"
-                                style={{
-                                  width:
-                                    dogProgressData.length > 0 ? "92%" : "0%",
-                                }}
-                              ></div>
-                            </div>
-                          </div>
-
-                          {dogProgressData.length > 0 && (
-                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-4">
-                              <div className="flex items-center space-x-2 mb-2">
-                                {getTrendIcon(metrics.recentTrend)}
-                                <span className="text-sm font-medium text-gray-900">
-                                  Health Trend
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-600">
-                                {selectedDog.name}'s health is currently{" "}
-                                <span
-                                  className={`font-medium ${getTrendColor(
-                                    metrics.recentTrend
-                                  )}`}
+                        {/* Protocol History */}
+                        {protocolHistory.length > 1 && (
+                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4 ">
+                              Protocol History
+                            </h3>
+                            <div className="space-y-3">
+                              {protocolHistory.map((protocol, index) => (
+                                <div
+                                  key={protocol.id}
+                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                                 >
-                                  {metrics.recentTrend}
-                                </span>{" "}
-                                based on recent assessments.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Protocol Tab */}
-                {activeTab === "protocol" && (
-                  <div className="space-y-8">
-                    {/* AI Diagnosis Display */}
-                    {lastDiagnosisSubmission && (
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center space-x-2 mb-4">
-                          <MessageCircle className="h-6 w-6 text-purple-600" />
-                          <h3 className="text-xl font-semibold text-gray-900 ">
-                            AI Assessment
-                          </h3>
-                          <span className="text-sm text-gray-500">
-                            Confidence:{" "}
-                            {Math.round(
-                              lastDiagnosisSubmission.aiDiagnosis.confidence *
-                                100
-                            )}
-                            %
-                          </span>
-                          {lastDiagnosisSubmission.isReevaluation && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                              Re-evaluation
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <h4 className="font-medium text-gray-900 mb-2 ">
-                              Primary Concerns
-                            </h4>
-                            <ul className="space-y-1">
-                              {lastDiagnosisSubmission.aiDiagnosis.primaryConcerns.map(
-                                (concern, index) => (
-                                  <li
-                                    key={index}
-                                    className="flex items-center space-x-2"
-                                  >
-                                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                                    <span className="text-sm text-gray-700">
-                                      {concern}
+                                  <div>
+                                    <span className="font-medium text-gray-900">
+                                      Version {protocol.version}
                                     </span>
-                                  </li>
-                                )
-                              )}
-                            </ul>
-                          </div>
-
-                          <div>
-                            <h4 className="font-medium text-gray-900 mb-2 ">
-                              AI Recommendations
-                            </h4>
-                            <ul className="space-y-1">
-                              {lastDiagnosisSubmission.aiDiagnosis.recommendations
-                                .slice(0, 3)
-                                .map((rec, index) => (
-                                  <li
-                                    key={index}
-                                    className="flex items-start space-x-2"
-                                  >
-                                    <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                                    <span className="text-sm text-gray-700">
-                                      {rec}
+                                    <span className="text-sm text-gray-500 ml-2">
+                                      {new Date(
+                                        protocol.createdAt
+                                      ).toLocaleDateString()}
                                     </span>
-                                  </li>
-                                ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Protocol History */}
-                    {protocolHistory.length > 1 && (
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4 ">
-                          Protocol History
-                        </h3>
-                        <div className="space-y-3">
-                          {protocolHistory.map((protocol, index) => (
-                            <div
-                              key={protocol.id}
-                              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                            >
-                              <div>
-                                <span className="font-medium text-gray-900">
-                                  Version {protocol.version}
-                                </span>
-                                <span className="text-sm text-gray-500 ml-2">
-                                  {new Date(
-                                    protocol.createdAt
-                                  ).toLocaleDateString()}
-                                </span>
-                                {index === 0 && (
-                                  <span className="ml-2 px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded-full">
-                                    Current
-                                  </span>
-                                )}
-                              </div>
-                              {protocol.replacesProtocolId && (
-                                <span className="text-xs text-gray-500">
-                                  Updated from v{protocol.version - 1}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedDog?.overview ? (
-                      <>
-                        {/* Header */}
-                        <div className="text-center">
-                          <div className="flex justify-center mb-4">
-                            <CheckCircle className="h-12 w-12 text-brand-midgrey" />
-                          </div>
-                          <h1 className="text-3xl font-bold text-gray-900 mb-2 ">
-                            {selectedDog.name}'s Gut Health Protocol
-                          </h1>
-                          <p className="text-lg text-gray-600">
-                            Custom plan for your {selectedDog.breed}
-                          </p>
-                          <div className="mt-4 inline-flex items-center space-x-2 bg-brand-offwhite text-brand-charcoal px-4 py-2 rounded-full text-sm font-medium">
-                            <Calendar className="h-4 w-4" />
-                            <span>Created on 1/20/2024</span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                          {/* Meal Plan */}
-                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <div className="flex items-center space-x-2 mb-6">
-                              <img src={boneIcon} className="w-10" />
-                              <h2 className="text-xl font-bold text-gray-900 ">
-                                Daily Meal Plan
-                              </h2>
-                            </div>
-
-                            {/* Phase banner */}
-                            <div className="flex items-center my-4 w-full bg-white py-3 px-8" style={{overflowX:"scroll"}}>
-                              {/* Step 1: Past */}
-                              <div className="flex items-center">
-                                <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-charcoal text-white text-xs font-bold">
-                                  ✓
-                                </div>
-                                <span className="ml-2 text-gray-600">
-                                  Reset
-                                </span>
-                              </div>
-                              <div className="mx-4 h-0.5 w-8 bg-brand-charcoal"></div>
-
-                              {/* Step 2: Current */}
-                              <div className="flex items-center">
-                                <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-midgrey text-white text-xs font-bold">
-                                  2
-                                </div>
-                                <span className="ml-2 font-bold text-brand-midgrey">
-                                  Rebuild
-                                </span>
-                              </div>
-                              <div className="mx-4 h-0.5 w-8 bg-gray-300"></div>
-
-                              {/* Step 3: Future */}
-                              <div className="flex items-center">
-                                <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-300 text-gray-500 text-xs font-bold">
-                                  3
-                                </div>
-                                <span className="ml-2 text-gray-400">
-                                  Strengthen
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="space-y-6">
-                              {selectedDog?.overview?.daily_meal_plan?.map(
-                                (el, i) => (
-                                  <div
-                                    key={i}
-                                    className="bg-brand-offwhite rounded-lg p-4"
-                                    style={{overflowWrap: "anywhere"}}
-                                  >
-                                    <h3 className="font-semibold text-gray-900 mb-1 flex items-center">
-                                      <CircleDashed size={15} className="mr-2 text-purple-700 text-bold" />
-                                      {el?.title || `Meal ${i + 1}`}
-                                    </h3>
-                                    <p className="text-gray-700">
-                                      {el?.description || ""}
-                                    </p>
+                                    {index === 0 && (
+                                      <span className="ml-2 px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded-full">
+                                        Current
+                                      </span>
+                                    )}
                                   </div>
-                                )
-                              )}
-
-                              <div className="bg-gray-50 rounded-lg p-4">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-gray-700">
-                                    Meals per day:
-                                  </span>
-                                  <span className="text-lg font-bold text-emerald-600">
-                                    {
-                                      selectedDog?.overview?.daily_meal_plan
-                                        ?.length
-                                    }
-                                  </span>
+                                  {protocol.replacesProtocolId && (
+                                    <span className="text-xs text-gray-500">
+                                      Updated from v{protocol.version - 1}
+                                    </span>
+                                  )}
                                 </div>
-                              </div>
+                              ))}
                             </div>
                           </div>
+                        )}
 
-                          {/* Supplements */}
-                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <div className="flex items-center space-x-2 mb-6">
-                              <img src={capsuleIcon} className="w-10" />
-                              <h2 className="text-xl font-bold text-gray-900">
-                                Supplement Protocol
-                              </h2>
-                            </div>
-                            {selectedDog?.protocol?.supplements && (
-                              <div className="space-y-4">
-                                {selectedDog?.protocol?.supplements.map(
-                                  (supplement, index) => (
-                                    <div className="flex items-start space-x-3 p-4 bg-brand-offwhite rounded-lg">
-                                      <CheckCircle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="text-gray-900 font-medium">
-                                          {supplement.title}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            )}
-
-                            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                              <p className="text-sm text-yellow-800">
-                                <strong>Important:</strong> Always consult with
-                                your veterinarian before starting any new
-                                supplements.
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Custom cards */}
-                          {selectedDog?.protocol?.custom_sections ? (
-                            <>
-                              {selectedDog?.protocol?.custom_sections?.map(
-                                (sec) => (
-                                  <>
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                      <div className="flex items-center space-x-2 mb-6">
-                                        <h2 className="text-xl font-bold text-gray-900">
-                                          {sec.section_name}
-                                        </h2>
-                                      </div>
-                                      {sec.items && (
-                                        <div className="space-y-4">
-                                          {sec.items.map((el, index) => (
-                                            <div className="flex items-start space-x-3 p-4 bg-brand-offwhite rounded-lg">
-                                              <div
-                                                key={index}
-                                                className="bg-brand-offwhite rounded-lg p-4"
-                                                style={{overflowWrap: "anywhere"}}
-                                              >
-                                                <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                                                  <span className="w-3 h-3 bg-blue-300 rounded-full mr-2"></span>
-                                                  {el?.title || `Meal ${i + 1}`}
-                                                </h3>
-                                                <p className="text-gray-700">
-                                                  {el?.description || ""}
-                                                </p>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </>
-                                )
-                              )}
-                            </>
-                          ) : (
-                            <></>
-                          )}
-                        </div>
-
-                        {/* Lifestyle Tips */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                          <div className="flex items-center space-x-2 mb-6">
-                            <img src={heartIcon} style={{ height: "34px" }} />
-                            <h2 className="text-xl font-bold text-gray-900">
-                              Lifestyle Recommendations
-                            </h2>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {selectedDog?.protocol &&
-                              selectedDog?.protocol?.lifestyle_recommendations?.map(
-                                (tip, index) => (
-                                  <div
-                                    key={index}
-                                    onClick={(e) => {
-                                      const [hollow, filled] =
-                                        e.currentTarget.querySelectorAll("svg");
-                                      hollow.classList.toggle("hidden");
-                                      filled.classList.toggle("hidden");
-                                    }}
-                                    className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-lg cursor-pointer"
-                                  >
-                                    {/* Hollow (default) */}
-                                    <Circle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
-
-                                    {/* Filled (hidden by default) */}
-                                    <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0 hidden" />
-                                    <p className="text-gray-700">{tip.title}</p>
-                                  </div>
-                                )
-                              )}
-                          </div>
-                        </div>
-
-                        {/* Next Steps */}
-                        {selectedDog?.protocol?.next_steps ? (
+                        {selectedDog?.overview ? (
                           <>
-                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-6">
-                              <h3 className="text-lg font-bold text-gray-900 mb-4 ">
-                                Next Steps
-                              </h3>
-                              <div className="space-y-3">
-                                {selectedDog?.protocol?.next_steps?.map(
-                                  (step, index) => (
-                                    <>
-                                      <div className="flex items-center space-x-3">
-                                        <span className="flex-shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                                          {index + 1}
-                                        </span>
+                            {/* Header */}
+                            <div className="text-center">
+                              <div className="flex justify-center mb-4">
+                                <CheckCircle className="h-12 w-12 text-brand-midgrey" />
+                              </div>
+                              <h1 className="text-3xl font-bold text-gray-900 mb-2 ">
+                                {selectedDog.name}'s Gut Health Protocol
+                              </h1>
+                              <p className="text-lg text-gray-600">
+                                Custom plan for your {selectedDog.breed}
+                              </p>
+                              <div className="mt-4 inline-flex items-center space-x-2 bg-brand-offwhite text-brand-charcoal px-4 py-2 rounded-full text-sm font-medium">
+                                <Calendar className="h-4 w-4" />
+                                <span>Created on 1/20/2024</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                              {/* Meal Plan */}
+                              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center space-x-2 mb-6">
+                                  <img src={boneIcon} className="w-10" />
+                                  <h2 className="text-xl font-bold text-gray-900 ">
+                                    Daily Meal Plan
+                                  </h2>
+                                </div>
+
+                                {/* Phase banner */}
+                                <div
+                                  className="flex items-center my-4 w-full bg-white py-3 px-8"
+                                  style={{ overflowX: "scroll" }}
+                                >
+                                  {/* Step 1: Past */}
+                                  <div className="flex items-center">
+                                    <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-charcoal text-white text-xs font-bold">
+                                      ✓
+                                    </div>
+                                    <span className="ml-2 text-gray-600">
+                                      Reset
+                                    </span>
+                                  </div>
+                                  <div className="mx-4 h-0.5 w-8 bg-brand-charcoal"></div>
+
+                                  {/* Step 2: Current */}
+                                  <div className="flex items-center">
+                                    <div className="w-6 h-6 flex items-center justify-center rounded-full bg-brand-midgrey text-white text-xs font-bold">
+                                      2
+                                    </div>
+                                    <span className="ml-2 font-bold text-brand-midgrey">
+                                      Rebuild
+                                    </span>
+                                  </div>
+                                  <div className="mx-4 h-0.5 w-8 bg-gray-300"></div>
+
+                                  {/* Step 3: Future */}
+                                  <div className="flex items-center">
+                                    <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-300 text-gray-500 text-xs font-bold">
+                                      3
+                                    </div>
+                                    <span className="ml-2 text-gray-400">
+                                      Strengthen
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                  {selectedDog?.overview?.daily_meal_plan?.map(
+                                    (el, i) => (
+                                      <div
+                                        key={i}
+                                        className="bg-brand-offwhite rounded-lg p-4"
+                                        style={{ overflowWrap: "anywhere" }}
+                                      >
+                                        <h3 className="font-semibold text-gray-900 mb-1 flex items-center">
+                                          <CircleDashed
+                                            size={15}
+                                            className="mr-2 text-purple-700 text-bold"
+                                          />
+                                          {el?.title || `Meal ${i + 1}`}
+                                        </h3>
                                         <p className="text-gray-700">
-                                          {step.title}
+                                          {el?.description || ""}
                                         </p>
                                       </div>
-                                    </>
-                                  )
+                                    )
+                                  )}
+
+                                  <div className="bg-gray-50 rounded-lg p-4">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium text-gray-700">
+                                        Meals per day:
+                                      </span>
+                                      <span className="text-lg font-bold text-emerald-600">
+                                        {
+                                          selectedDog?.overview?.daily_meal_plan
+                                            ?.length
+                                        }
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Supplements */}
+                              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center space-x-2 mb-6">
+                                  <img src={capsuleIcon} className="w-10" />
+                                  <h2 className="text-xl font-bold text-gray-900">
+                                    Supplement Protocol
+                                  </h2>
+                                </div>
+                                {selectedDog?.protocol?.supplements && (
+                                  <div className="space-y-4">
+                                    {selectedDog?.protocol?.supplements.map(
+                                      (supplement, index) => (
+                                        <div className="flex items-start space-x-3 p-4 bg-brand-offwhite rounded-lg">
+                                          <CheckCircle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
+                                          <div>
+                                            <p className="text-gray-900 font-medium">
+                                              {supplement.title}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
                                 )}
+
+                                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <p className="text-sm text-yellow-800">
+                                    <strong>Important:</strong> Always consult
+                                    with your veterinarian before starting any
+                                    new supplements.
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Custom cards */}
+                              {selectedDog?.protocol?.custom_sections ? (
+                                <>
+                                  {selectedDog?.protocol?.custom_sections?.map(
+                                    (sec) => (
+                                      <>
+                                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                          <div className="flex items-center space-x-2 mb-6">
+                                            <h2 className="text-xl font-bold text-gray-900">
+                                              {sec.section_name}
+                                            </h2>
+                                          </div>
+                                          {sec.items && (
+                                            <div className="space-y-4">
+                                              {sec.items.map((el, index) => (
+                                                <div className="flex items-start space-x-3 p-4 bg-brand-offwhite rounded-lg">
+                                                  <div
+                                                    key={index}
+                                                    className="bg-brand-offwhite rounded-lg p-4"
+                                                    style={{
+                                                      overflowWrap: "anywhere",
+                                                    }}
+                                                  >
+                                                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                                                      <span className="w-3 h-3 bg-blue-300 rounded-full mr-2"></span>
+                                                      {el?.title ||
+                                                        `Meal ${i + 1}`}
+                                                    </h3>
+                                                    <p className="text-gray-700">
+                                                      {el?.description || ""}
+                                                    </p>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </>
+                                    )
+                                  )}
+                                </>
+                              ) : (
+                                <></>
+                              )}
+                            </div>
+
+                            {/* Lifestyle Tips */}
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                              <div className="flex items-center space-x-2 mb-6">
+                                <img
+                                  src={heartIcon}
+                                  style={{ height: "34px" }}
+                                />
+                                <h2 className="text-xl font-bold text-gray-900">
+                                  Lifestyle Recommendations
+                                </h2>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {selectedDog?.protocol &&
+                                  selectedDog?.protocol?.lifestyle_recommendations?.map(
+                                    (tip, index) => (
+                                      <div
+                                        key={index}
+                                        onClick={(e) => {
+                                          const [hollow, filled] =
+                                            e.currentTarget.querySelectorAll(
+                                              "svg"
+                                            );
+                                          hollow.classList.toggle("hidden");
+                                          filled.classList.toggle("hidden");
+                                        }}
+                                        className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-lg cursor-pointer"
+                                      >
+                                        {/* Hollow (default) */}
+                                        <Circle className="h-5 w-5 text-brand-charcoal mt-0.5 flex-shrink-0" />
+
+                                        {/* Filled (hidden by default) */}
+                                        <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0 hidden" />
+                                        <p className="text-gray-700">
+                                          {tip.title}
+                                        </p>
+                                      </div>
+                                    )
+                                  )}
+                              </div>
+                            </div>
+
+                            {/* Next Steps */}
+                            {selectedDog?.protocol?.next_steps ? (
+                              <>
+                                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 p-6">
+                                  <h3 className="text-lg font-bold text-gray-900 mb-4 ">
+                                    Next Steps
+                                  </h3>
+                                  <div className="space-y-3">
+                                    {selectedDog?.protocol?.next_steps?.map(
+                                      (step, index) => (
+                                        <>
+                                          <div className="flex items-center space-x-3">
+                                            <span className="flex-shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                                              {index + 1}
+                                            </span>
+                                            <p className="text-gray-700">
+                                              {step.title}
+                                            </p>
+                                          </div>
+                                        </>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <></>
+                            )}
+
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                              <div className="flex flex-col sm:flex-row gap-4">
+                                <button className="bg-gradient-to-r px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center space-x-2 bg-brand-charcoal text-brand-offwhite hover:bg-brand-midgrey hover:text-white">
+                                  <span>📄</span>
+                                  <span>Download Plan (PDF)</span>
+                                </button>
+                                <button className="bg-gradient-to-r px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center space-x-2 bg-blue-700 text-brand-offwhite hover:bg-brand-midgrey hover:text-white">
+                                  <span>📅</span>
+                                  <span>Book Consultation</span>
+                                </button>
                               </div>
                             </div>
                           </>
                         ) : (
-                          <></>
-                        )}
-
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                          <div className="flex flex-col sm:flex-row gap-4">
-                            <button className="bg-gradient-to-r px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center space-x-2 bg-brand-charcoal text-brand-offwhite hover:bg-brand-midgrey hover:text-white">
-                              <span>📄</span>
-                              <span>Download Plan (PDF)</span>
-                            </button>
-                            <button className="bg-gradient-to-r px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center space-x-2 bg-blue-700 text-brand-offwhite hover:bg-brand-midgrey hover:text-white">
-                              <span>📅</span>
-                              <span>Book Consultation</span>
-                            </button>
+                          <div className="text-center py-16">
+                            <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                              <img src={heartIcon} style={{ height: "34px" }} />
+                            </div>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-4 ">
+                              Gut Health Protocol Not Available
+                            </h1>
+                            <p className="text-lg text-gray-600 mb-2">
+                              {selectedDog.name} doesn't have a gut health
+                              protocol yet
+                            </p>
+                            <p className="text-gray-600 mb-8">
+                              Complete a health assessment to generate a
+                              personalized gut health protocol
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                              <button
+                                onClick={() =>
+                                  navigate("/intake?id=" + selectedDog?.id)
+                                }
+                                className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
+                              >
+                                Start Health Assessment
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center py-16">
-                        <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                          <img src={heartIcon} style={{ height: "34px" }} />
-                        </div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-4 ">
-                          Gut Health Protocol Not Available
-                        </h1>
-                        <p className="text-lg text-gray-600 mb-2">
-                          {selectedDog.name} doesn't have a gut health protocol
-                          yet
-                        </p>
-                        <p className="text-gray-600 mb-8">
-                          Complete a health assessment to generate a
-                          personalized gut health protocol
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tracker Tab */}
+                    {activeTab === "tracker" && (
+                      <div className="space-y-8">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2 ">
+                              {selectedDog.name}'s Progress Tracker
+                            </h1>
+                            <p className="text-lg text-gray-600">
+                              Monitor your {selectedDog.breed}'s health journey
+                            </p>
+                          </div>
                           <button
                             onClick={() =>
-                              navigate("/intake?id=" + selectedDog?.id)
+                              setShowProgressForm(!showProgressForm)
                             }
-                            className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
+                            className="mt-4 sm:mt-0 bg-gradient-to-r px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] flex items-center space-x-2 bg-brand-charcoal text-brand-offwhite hover:bg-gray-900 hover:text-white"
                           >
-                            Start Health Assessment
+                            <Plus className="h-5 w-5" />
+                            <span>Log Progress</span>
                           </button>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Tracker Tab */}
-                {activeTab === "tracker" && (
-                  <div className="space-y-8">
-                    {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2 ">
-                          {selectedDog.name}'s Progress Tracker
-                        </h1>
-                        <p className="text-lg text-gray-600">
-                          Monitor your {selectedDog.breed}'s health journey
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setShowProgressForm(!showProgressForm)}
-                        className="mt-4 sm:mt-0 bg-gradient-to-r px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-[1.02] flex items-center space-x-2 bg-brand-charcoal text-brand-offwhite hover:bg-gray-900 hover:text-white"
-                      >
-                        <Plus className="h-5 w-5" />
-                        <span>Log Progress</span>
-                      </button>
-                    </div>
+                        {/* Progress Form */}
+                        {showProgressForm && (
+                          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <div className="flex items-center space-x-2 mb-6">
+                              <Calendar className="h-6 w-6 text-emerald-600" />
+                              <h2 className="text-xl font-bold text-gray-900 ">
+                                Weekly Check-In for {selectedDog.name}
+                              </h2>
+                            </div>
 
-                    {/* Progress Form */}
-                    {showProgressForm && (
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center space-x-2 mb-6">
-                          <Calendar className="h-6 w-6 text-emerald-600" />
-                          <h2 className="text-xl font-bold text-gray-900 ">
-                            Weekly Check-In for {selectedDog.name}
-                          </h2>
-                        </div>
-
-                        <form
-                          onSubmit={handleSubmit(onSubmitProgress)}
-                          className="space-y-6"
-                        >
-                          {/* Current Symptoms */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-4">
-                              Current Symptoms (select all that apply)
-                            </label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {symptomOptions.map((symptom) => (
-                                <label
-                                  key={symptom.id}
-                                  className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-emerald-500 cursor-pointer"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={
-                                      watchedSymptoms?.includes(symptom.id) ||
-                                      false
-                                    }
-                                    onChange={(e) =>
-                                      handleSymptomChange(
-                                        symptom.id,
-                                        e.target.checked
-                                      )
-                                    }
-                                    className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                                  />
-                                  <span className="ml-3 text-sm text-gray-700">
-                                    {symptom.label}
-                                  </span>
+                            <form
+                              onSubmit={handleSubmit(onSubmitProgress)}
+                              className="space-y-6"
+                            >
+                              {/* Current Symptoms */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-4">
+                                  Current Symptoms (select all that apply)
                                 </label>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Improvement Score */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-4">
-                              Overall Improvement Score (1-10)
-                            </label>
-                            <div className="flex items-center space-x-4">
-                              <span className="text-sm text-gray-500">
-                                Poor
-                              </span>
-                              <input
-                                {...register("improvementScore", {
-                                  valueAsNumber: true,
-                                })}
-                                type="range"
-                                min="1"
-                                max="10"
-                                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                              />
-                              <span className="text-sm text-gray-500">
-                                Excellent
-                              </span>
-                              <span className="text-lg font-bold text-emerald-600 min-w-[2rem] text-center">
-                                {watchedScore}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Notes */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Progress Notes
-                            </label>
-                            <textarea
-                              {...register("notes")}
-                              rows={4}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                              placeholder="Describe any changes in behavior, energy, appetite, etc..."
-                            />
-                            {errors.notes && (
-                              <p className="mt-2 text-sm text-red-600">
-                                {errors.notes.message}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Submit Button */}
-                          <div className="flex space-x-3">
-                            <button
-                              type="submit"
-                              disabled={isSubmittingProgress}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                            >
-                              {isSubmittingProgress
-                                ? "Submitting..."
-                                : "Submit Progress"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setShowProgressForm(false)}
-                              className="bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:from-gray-300 hover:to-gray-400 transition-all duration-200"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-                    )}
-
-                    {/* Progress History */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center space-x-2 mb-6">
-                        <TrendingUp className="h-6 w-6 text-emerald-600" />
-                        <h2 className="text-xl font-bold text-gray-900 ">
-                          {selectedDog.name}'s Progress History
-                        </h2>
-                      </div>
-
-                      <div className="space-y-4">
-                        {progressData.map((entry) => (
-                          <div
-                            key={entry.id}
-                            className="border border-gray-200 rounded-lg p-6 hover:shadow-sm transition-shadow"
-                          >
-                            <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-4">
-                              <div className="flex items-center space-x-4 mb-3 md:mb-0">
-                                <div className="text-sm text-gray-500">
-                                  {new Date(entry.date).toLocaleDateString()}
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  {getScoreIcon(entry.improvementScore)}
-                                  <span
-                                    className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreColor(
-                                      entry.improvementScore
-                                    )}`}
-                                  >
-                                    Score: {entry.improvementScore}/10
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {entry.symptoms.length > 0 && (
-                              <div className="mb-3">
-                                <span className="text-sm font-medium text-gray-700">
-                                  Symptoms:{" "}
-                                </span>
-                                <div className="flex flex-wrap gap-2 mt-1">
-                                  {entry.symptoms.map((symptom) => (
-                                    <span
-                                      key={symptom}
-                                      className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full"
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {symptomOptions.map((symptom) => (
+                                    <label
+                                      key={symptom.id}
+                                      className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-emerald-500 cursor-pointer"
                                     >
-                                      {symptomOptions.find(
-                                        (opt) => opt.id === symptom
-                                      )?.label || symptom}
-                                    </span>
+                                      <input
+                                        type="checkbox"
+                                        checked={
+                                          watchedSymptoms?.includes(
+                                            symptom.id
+                                          ) || false
+                                        }
+                                        onChange={(e) =>
+                                          handleSymptomChange(
+                                            symptom.id,
+                                            e.target.checked
+                                          )
+                                        }
+                                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                      />
+                                      <span className="ml-3 text-sm text-gray-700">
+                                        {symptom.label}
+                                      </span>
+                                    </label>
                                   ))}
                                 </div>
                               </div>
-                            )}
 
-                            {entry.notes && (
+                              {/* Improvement Score */}
                               <div>
-                                <span className="text-sm font-medium text-gray-700">
-                                  Notes:{" "}
-                                </span>
-                                <p className="text-gray-600 text-sm mt-1">
-                                  {entry.notes}
-                                </p>
+                                <label className="block text-sm font-medium text-gray-700 mb-4">
+                                  Overall Improvement Score (1-10)
+                                </label>
+                                <div className="flex items-center space-x-4">
+                                  <span className="text-sm text-gray-500">
+                                    Poor
+                                  </span>
+                                  <input
+                                    {...register("improvementScore", {
+                                      valueAsNumber: true,
+                                    })}
+                                    type="range"
+                                    min="1"
+                                    max="10"
+                                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                                  />
+                                  <span className="text-sm text-gray-500">
+                                    Excellent
+                                  </span>
+                                  <span className="text-lg font-bold text-emerald-600 min-w-[2rem] text-center">
+                                    {watchedScore}
+                                  </span>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
 
-                      {progressData.length === 0 && (
-                        <div className="text-center py-12">
-                          <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <h3 className="text-lg font-medium text-gray-900 mb-2 ">
-                            No progress entries for {selectedDog.name} yet
-                          </h3>
-                          <p className="text-gray-600">
-                            Start tracking {selectedDog.name}'s progress to see
-                            improvements over time.
-                          </p>
+                              {/* Notes */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Progress Notes
+                                </label>
+                                <textarea
+                                  {...register("notes")}
+                                  rows={4}
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                  placeholder="Describe any changes in behavior, energy, appetite, etc..."
+                                />
+                                {errors.notes && (
+                                  <p className="mt-2 text-sm text-red-600">
+                                    {errors.notes.message}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Submit Button */}
+                              <div className="flex space-x-3">
+                                <button
+                                  type="submit"
+                                  disabled={isSubmittingProgress}
+                                  className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                                >
+                                  {isSubmittingProgress
+                                    ? "Submitting..."
+                                    : "Submit Progress"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowProgressForm(false)}
+                                  className="bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:from-gray-300 hover:to-gray-400 transition-all duration-200"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+                        )}
+
+                        {/* Progress History */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                          <div className="flex items-center space-x-2 mb-6">
+                            <TrendingUp className="h-6 w-6 text-emerald-600" />
+                            <h2 className="text-xl font-bold text-gray-900 ">
+                              {selectedDog.name}'s Progress History
+                            </h2>
+                          </div>
+
+                          <div className="space-y-4">
+                            {selectedDog.progress.map((entry) => (
+                              <div
+                                key={entry.id}
+                                className="border border-gray-200 rounded-lg p-6 hover:shadow-sm transition-shadow"
+                              >
+                                <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-4">
+                                  <div className="flex items-center space-x-4 mb-3 md:mb-0">
+                                    <div className="text-sm text-gray-500">
+                                      {new Date(
+                                        entry.date
+                                      ).toLocaleDateString()}
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      {getScoreIcon(entry.improvement_score)}
+                                      <span
+                                        className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreColor(
+                                          entry.improvement_score
+                                        )}`}
+                                      >
+                                        Score:{" "}
+                                        {entry.improvement_score ?? "N/A"}/10
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {entry.symptoms.length > 0 && (
+                                  <div className="mb-3">
+                                    <span className="text-sm font-medium text-gray-700">
+                                      Symptoms:{" "}
+                                    </span>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                      {entry.symptoms.map((symptom) => (
+                                        <span
+                                          key={symptom}
+                                          className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full"
+                                        >
+                                          {symptomOptions.find(
+                                            (opt) => opt.id === symptom
+                                          )?.label || symptom}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {entry.notes && (
+                                  <div>
+                                    <span className="text-sm font-medium text-gray-700">
+                                      Notes:{" "}
+                                    </span>
+                                    <p className="text-gray-600 text-sm mt-1">
+                                      {entry.notes}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {selectedDog.progress.length === 0 && (
+                            <div className="text-center py-12">
+                              <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <h3 className="text-lg font-medium text-gray-900 mb-2 ">
+                                No progress entries for {selectedDog.name} yet
+                              </h3>
+                              <p className="text-gray-600">
+                                Start tracking {selectedDog.name}'s progress to
+                                see improvements over time.
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </>
         )}

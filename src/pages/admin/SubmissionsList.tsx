@@ -27,9 +27,9 @@ const SubmissionsList: React.FC = () => {
   const priorityFilter = searchParams.get("priority") || "all";
   const filteredSubmissions = submissions.filter((submission) => {
     const matchesSearch =
-      submission.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      submission.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      submission.dogData.breed.toLowerCase().includes(searchTerm.toLowerCase());
+      submission.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      submission.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      submission.dog.breed.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" || submission.status === statusFilter;
@@ -209,7 +209,7 @@ const SubmissionsList: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900">
                 {filteredSubmissions.length} Submissions
               </h3>
-              <label className="flex items-center space-x-2">
+              {/* <label className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   checked={
@@ -220,7 +220,7 @@ const SubmissionsList: React.FC = () => {
                   className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                 />
                 <span className="text-sm text-gray-600">Select All</span>
-              </label>
+              </label> */}
             </div>
           </div>
 
@@ -229,7 +229,7 @@ const SubmissionsList: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Select
+                    {/* Select */}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     User & Dog
@@ -252,10 +252,10 @@ const SubmissionsList: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredSubmissions.map((submission) => (
+                {filteredSubmissions.map((submission, index) => (
                   <tr key={submission.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <input
+                      {/* <input
                         type="checkbox"
                         checked={selectedSubmissions.includes(submission.id)}
                         onChange={(e) => {
@@ -273,14 +273,14 @@ const SubmissionsList: React.FC = () => {
                           }
                         }}
                         className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                      />
+                      /> */}<div className="font-bold text-gray-500">{index+1}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <User className="h-8 w-8 text-gray-400 mr-3" />
                         <div>
                           <div className="text-sm font-medium text-gray-900">
-                            {submission.userName}
+                            {submission.name}
                           </div>
                           <div className="text-sm text-gray-500">
                             {submission.dog.breed}
@@ -334,7 +334,7 @@ const SubmissionsList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-500">
                         <Calendar className="h-4 w-4 mr-1" />
-                        {new Date(submission.submittedAt).toLocaleDateString()}
+                        {new Date(submission.created_at).toLocaleDateString()}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

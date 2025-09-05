@@ -1,7 +1,6 @@
-from pydantic import BaseModel
-from typing import Any, Dict
+from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional, List
 from uuid import UUID
-from typing import Optional
 from datetime import datetime
 
 class UserCreate(BaseModel):
@@ -47,6 +46,7 @@ class DogCreate(BaseModel):
     protocol: Optional[dict] = None
     admin: Optional[bool] = False
     status: Optional[str] = "in_review"  # default status
+    progress: Optional[dict]
 
 class Dog(BaseModel):
     id: UUID
@@ -114,3 +114,4 @@ class SubmissionOut(BaseModel):
                 "status": obj.dog.status,
             } if obj.dog else None
         )
+    

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdmin } from '../../context/AdminContext';
 import { 
@@ -12,14 +12,35 @@ import {
   TrendingUp,
   Shield
 } from 'lucide-react';
+import { jwtRequest } from '../../env';
 
 const AdminDashboard: React.FC = () => {
-  const { adminUser, submissions, notifications } = useAdmin();
+  const { adminUser, notifications } = useAdmin();
+  const [submissions, setSubmissions] = React.useState([]);
 
   const pendingSubmissions = submissions.filter(s => s.status === 'pending').length;
-  const urgentCases = submissions.filter(s => s.aiDiagnosis.urgencyLevel === 'urgent').length;
+  const urgentCases = submissions.filter(s => s.priority === 'urgent'||s.priority === 'high').length;
   const unreadNotifications = notifications.filter(n => !n.isRead).length;
-  const underReview = submissions.filter(s => s.status === 'under_review').length;
+  const underReview = submissions.filter(s => s.status === 'in_review').length;
+
+  useEffect(() => {
+      // Fetch all submissions sorted by latest date
+      const fetchAllSubmissions = async () => {
+        try {
+          const data = await jwtRequest("/submissions/latest", "POST"); // your FastAPI endpoint
+          console.log("All submissions:", data);
+          setSubmissions(data);
+          return data;
+        } catch (err) {
+          console.error("Failed to fetch submissions:", err);
+        }
+      };
+  
+      // Usage example
+      fetchAllSubmissions().then((submissions) => {
+        console.warn("Fetched submissions:", submissions);
+      });
+    }, []);
 
   const quickStats = [
     {
@@ -37,13 +58,6 @@ const AdminDashboard: React.FC = () => {
       href: '/admin/submissions?priority=urgent'
     },
     {
-      title: 'Under Review',
-      value: underReview,
-      icon: FileText,
-      color: 'bg-blue-50 text-blue-600',
-      href: '/admin/submissions?status=under_review'
-    },
-    {
       title: 'Notifications',
       value: unreadNotifications,
       icon: Bell,
@@ -53,30 +67,22 @@ const AdminDashboard: React.FC = () => {
   ];
 
   const quickActions = [
-    {
-      title: 'Review Queue',
-      description: 'Review pending diagnoses and treatment plans',
-      icon: FileText,
-      href: '/admin/submissions',
-      color: 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200',
-      iconColor: 'text-emerald-600'
-    },
-    {
-      title: 'Notifications',
-      description: 'View system alerts and case updates',
-      icon: Bell,
-      href: '/admin/notifications',
-      color: 'bg-purple-50 hover:bg-purple-100 border-purple-200',
-      iconColor: 'text-purple-600'
-    },
-    {
-      title: 'Audit Logs',
-      description: 'Track all system actions and changes',
-      icon: Shield,
-      href: '/admin/audit',
-      color: 'bg-orange-50 hover:bg-orange-100 border-orange-200',
-      iconColor: 'text-orange-600'
-    },
+    // {
+    //   title: 'Review Queue',
+    //   description: 'Review pending diagnoses and treatment plans',
+    //   icon: FileText,
+    //   href: '/admin/submissions',
+    //   color: 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200',
+    //   iconColor: 'text-emerald-600'
+    // },
+    // {
+    //   title: 'Notifications',
+    //   description: 'View system alerts and case updates',
+    //   icon: Bell,
+    //   href: '/admin/notifications',
+    //   color: 'bg-purple-50 hover:bg-purple-100 border-purple-200',
+    //   iconColor: 'text-purple-600'
+    // }
   ];
 
   const recentActivity = submissions
@@ -95,7 +101,7 @@ const AdminDashboard: React.FC = () => {
                 Admin Dashboard
               </h1>
               <p className="text-lg text-gray-600">
-                Welcome back, {adminUser?.name} ({adminUser?.role})
+                Welcome back, Dr. Lauren
               </p>
             </div>
             <div className="mt-4 sm:mt-0 flex flex-col items-start sm:items-end">

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useGlobalStore } from "../../globalStore";
 import { renderProtocol } from "./compoents/RenderProtocol";
+import { jwtRequest } from "../../env";
 
 function mergeProtocols(firstJson: any, secondJson: any) {
   return {
@@ -35,46 +36,11 @@ function mergeProtocols(firstJson: any, secondJson: any) {
 }
 
 const SubmissionReview: React.FC = () => {
-  const { submissions, updateSubmissionStatus, assignSubmission, adminUser } =
+  const { submissions, updateSubmissionStatus, assignSubmission, adminUser, set } =
     useAdmin();
   const [reviewNotes, setReviewNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { submission } = useGlobalStore();
-  console.log(
-    "Current submission in store:",
-    mergeProtocols(
-      submission?.dog?.overview || {},
-      submission?.dog?.protocol || {}
-    )
-  );
-
-  // Initialize finalProtocol state
-  const [finalProtocol, setFinalProtocol] = useState<Protocol>(() => {
-    if (submission?.finalProtocol) {
-      return submission.finalProtocol;
-    }
-    return {
-      id: "",
-      dogId: submission?.dog?.id || "",
-      phase: "reset",
-      mealPlan: {
-        breakfast: "",
-        dinner: "",
-      },
-      supplements: [],
-      lifestyleTips: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      upcomingChanges: "",
-      nextPhaseDetails: "",
-    };
-  });
-
-  // Get previous submission for re-evaluations
-  const previousSubmission =
-    submission?.isReevaluation && submission?.previousSubmissionId
-      ? submissions.find((s) => s.id === submission.previousSubmissionId)
-      : null;
+  const { submission, setSubmission } = useGlobalStore();
 
   if (!submission) {
     return (
@@ -94,10 +60,20 @@ const SubmissionReview: React.FC = () => {
     );
   }
 
-  const handleStatusUpdate = async (status: typeof submission.status) => {
+  const handleStatusUpdate = async (status: any) => {
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    updateSubmissionStatus(submission.id, status, reviewNotes);
+    try {
+      const data = await jwtRequest("/dogs/update-status/"+submission?.dog?.id, "PUT", {status}); // your FastAPI endpoint
+      if(data?.success){
+        let t=submission
+        t.status=status
+        setSubmission(t)
+        alert("Successfully approvved.")
+      }
+    } catch (err) {
+      alert("Could not approve. Please try again.")
+      console.error("Failed to fetch submissions:", err);
+    }
     setIsSubmitting(false);
   };
 
@@ -284,11 +260,18 @@ const SubmissionReview: React.FC = () => {
                     AI Generated
                   </h2>
                 </div>
-                <div className="flex items-center space-x-2 mb-1 text-gray-500 cursor-pointer rounded-3xl bg-brand-offwhite px-3 py-0.5 hover:shadow-sm transition-shadow hover:bg-slate-600 hover:text-white" onClick={() => {
-                  // Navigate to protocol editor with current submission ID
-                  window.open(`/admin/protocol-editor/${submission.dog.id}`, "_self");
-                }}>
-                  <PencilLine size={14}/><span className="text-small tracking-tight">Edit</span>
+                <div
+                  className="flex items-center space-x-2 mb-1 text-gray-500 cursor-pointer rounded-3xl bg-brand-offwhite px-3 py-0.5 hover:shadow-sm transition-shadow hover:bg-slate-600 hover:text-white"
+                  onClick={() => {
+                    // Navigate to protocol editor with current submission ID
+                    window.open(
+                      `/admin/protocol-editor/${submission.dog.id}`,
+                      "_self"
+                    );
+                  }}
+                >
+                  <PencilLine size={14} />
+                  <span className="text-small tracking-tight">Edit</span>
                 </div>
               </div>
 
@@ -301,7 +284,7 @@ const SubmissionReview: React.FC = () => {
             </div>
 
             {/* AI Diagnosis */}
-            {submission.isReevaluation && previousSubmission && (
+            {/* {submission.isReevaluation && previousSubmission && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center space-x-2 mb-4">
                   <Brain className="h-6 w-6 text-blue-600" />
@@ -387,7 +370,7 @@ const SubmissionReview: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )}
+            )} */}
           </div>
 
           {/* Sidebar */}
@@ -399,105 +382,6 @@ const SubmissionReview: React.FC = () => {
               </h3>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Review Notes
-                  </label>
-                  <textarea
-                    value={reviewNotes}
-                    onChange={(e) => setReviewNotes(e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Add your review notes..."
-                  />
-                </div>
-
-                {/* Final Protocol Editor */}
-                <div className="border-t pt-4">
-                  <h4 className="text-md font-semibold text-gray-900 mb-3">
-                    Final Protocol
-                  </h4>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Breakfast
-                      </label>
-                      <input
-                        type="text"
-                        value={finalProtocol.mealPlan.breakfast}
-                        onChange={(e) =>
-                          setFinalProtocol((prev) => ({
-                            ...prev,
-                            mealPlan: {
-                              ...prev.mealPlan,
-                              breakfast: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Dinner
-                      </label>
-                      <input
-                        type="text"
-                        value={finalProtocol.mealPlan.dinner}
-                        onChange={(e) =>
-                          setFinalProtocol((prev) => ({
-                            ...prev,
-                            mealPlan: {
-                              ...prev.mealPlan,
-                              dinner: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Supplements (one per line)
-                      </label>
-                      <textarea
-                        value={finalProtocol.supplements.join("\n")}
-                        onChange={(e) =>
-                          setFinalProtocol((prev) => ({
-                            ...prev,
-                            supplements: e.target.value
-                              .split("\n")
-                              .filter((s) => s.trim()),
-                          }))
-                        }
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Lifestyle Tips (one per line)
-                      </label>
-                      <textarea
-                        value={finalProtocol.lifestyleTips.join("\n")}
-                        onChange={(e) =>
-                          setFinalProtocol((prev) => ({
-                            ...prev,
-                            lifestyleTips: e.target.value
-                              .split("\n")
-                              .filter((s) => s.trim()),
-                          }))
-                        }
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
                 <div className="space-y-2">
                   <button
                     onClick={() => handleStatusUpdate("approved")}
@@ -508,23 +392,23 @@ const SubmissionReview: React.FC = () => {
                     <span>{isSubmitting ? "Processing..." : "Approve"}</span>
                   </button>
 
-                  <button
+                  {/* <button
                     onClick={() => handleStatusUpdate("needs_revision")}
                     disabled={isSubmitting}
                     className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white px-4 py-2 rounded-lg font-medium hover:from-orange-700 hover:to-red-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
                   >
                     <Edit3 className="h-4 w-4" />
                     <span>Needs Revision</span>
-                  </button>
+                  </button> */}
 
-                  <button
+                  {/* <button
                     onClick={() => handleStatusUpdate("rejected")}
                     disabled={isSubmitting}
                     className="w-full bg-gradient-to-r from-red-600 to-pink-600 text-white px-4 py-2 rounded-lg font-medium hover:from-red-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
                   >
                     <XCircle className="h-4 w-4" />
                     <span>Reject</span>
-                  </button>
+                  </button> */}
                 </div>
               </div>
             </div>

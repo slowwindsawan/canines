@@ -59,7 +59,10 @@ Only return a JSON response in the following structure:
     ],
     "next_steps": [
         "title":"..."
-    ]
+    ],
+    "confidence": <0 - 100>,
+    "priority": "<low, medium, high, urgent>",
+    "symptoms": [<list of symptoms>]
 }
 Do not include any explanations outside this JSON and nothing before first '{'.
 """

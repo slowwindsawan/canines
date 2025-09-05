@@ -196,9 +196,11 @@ const ProtocolEditor: React.FC<ProtocolEditorProps> = ({
 }) => {
   const { id } = useParams<{ id: string }>();
   const [dog, setDog] = useState<any>({});
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
   const onSave = async (data: ProtocolJSON) => {
+    setSaving(true);
     // Handle save logic here
     let new_data = {
       ...dog,
@@ -220,6 +222,7 @@ const ProtocolEditor: React.FC<ProtocolEditorProps> = ({
     } else {
       alert(response?.message || "Failed to update dog.");
     }
+    setSaving(false);
   };
 
   const [protocol, setProtocol] = useState<ProtocolJSON>({
@@ -685,10 +688,11 @@ const ProtocolEditor: React.FC<ProtocolEditorProps> = ({
           onClick={() => {
             handleSave();
           }}
-          className="p-3 rounded-lg bg-brand-charcoal text-brand-offwhite flex items-center gap-2"
+          className={saving?"p-3 rounded-lg bg-gray-300 text-black flex items-center gap-2":"p-3 rounded-lg bg-brand-charcoal text-brand-offwhite flex items-center gap-2"}
+          disabled={saving}
         >
           <Save />
-          Save and notify
+          {saving ? "Saving..." : "Save and notify"}
         </button>
 
         <button

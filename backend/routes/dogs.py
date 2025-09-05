@@ -8,8 +8,11 @@ from sqlalchemy.exc import IntegrityError
 import uuid
 from typing import Any, Dict
 from ai.openai import call_gpt_chat
+from datetime import datetime
+from typing import List, Optional, Dict
 
 router = APIRouter(prefix="/dogs", tags=["dogs"])
+
 
 # Dependency
 def get_db():
@@ -20,47 +23,69 @@ def get_db():
         db.close()
 
 def merge_form_and_user_data_for_ai(form_structure, user_data):
-    form_lookup = {f['name']: f for f in form_structure}
-    
+    form_lookup = {f["name"]: f for f in form_structure}
+
     final_json = []
     final_string_lines = []
-    
+
     for user_field in user_data:
-        field_name = user_field.get('name')
+        field_name = user_field.get("name")
         merged_field = {
             "field_name": field_name,
-            "user_filled_value": user_field.get('value'),
-            "label": user_field.get('label')
+            "user_filled_value": user_field.get("value"),
+            "label": user_field.get("label"),
         }
-        
+
         if field_name in form_lookup:
             form_field = form_lookup[field_name]
-            if 'aiText' in form_field:
-                merged_field['aiText'] = form_field['aiText']
-            for key in ['options', 'min', 'max', 'maxLength']:
+            if "aiText" in form_field:
+                merged_field["aiText"] = form_field["aiText"]
+            for key in ["options", "min", "max", "maxLength"]:
                 if key in user_field:
                     merged_field[key] = user_field[key]
         else:
             # Include any extra keys from user_field if relevant
-            for key in ['options', 'min', 'max', 'maxLength']:
+            for key in ["options", "min", "max", "maxLength"]:
                 if key in user_field:
                     merged_field[key] = user_field[key]
-        
+
         final_json.append(merged_field)
-        
+
         # Build human-readable string
         lines = [
             f"Field: {merged_field.get('label', field_name)}",
-            f"User value: {merged_field.get('user_filled_value')}"
+            f"User value: {merged_field.get('user_filled_value')}",
         ]
-        if 'aiText' in merged_field:
+        if "aiText" in merged_field:
             lines.append(f"Description: {merged_field['aiText']}")
         lines.append("---")
         final_string_lines.append("\n".join(lines))
-    
+
     final_string = "\n".join(final_string_lines)
-    
+
     return final_json, final_string
+
+def add_activity(activities: Optional[List[Dict]], new_activity: Dict) -> List[Dict]:
+    """
+    Adds a new activity to the list, keeping at most 5 items.
+    If activities is None, initializes it as an empty list.
+
+    Each activity is a dict with: title, timestamp, description, type
+    """
+    if activities is None:
+        activities = []
+
+    # Convert datetime to ISO string if needed
+    if isinstance(new_activity.get("timestamp"), datetime):
+        new_activity["timestamp"] = new_activity["timestamp"].isoformat()
+
+    activities.append(new_activity)
+
+    # Keep only the last 5 items
+    if len(activities) > 5:
+        activities = activities[-5:]
+
+    return activities
 
 @router.post("/create-dog")
 def create_dog(
@@ -69,14 +94,18 @@ def create_dog(
     db: Session = Depends(get_db),
 ):
     try:
-        user_data=dog.form_data["fullFormFields"]or[]
-        dog_form_structure=db.query(models.OnboardingForm).first().json_data or []
+        user_data = dog.form_data["fullFormFields"] or []
+        dog_form_structure = db.query(models.OnboardingForm).first().json_data or []
         # Merge form and user data for AI processing
-        merged_data, merged_string = merge_form_and_user_data_for_ai(dog_form_structure, user_data)
-        
+        merged_data, merged_string = merge_form_and_user_data_for_ai(
+            dog_form_structure, user_data
+        )
+
         # --- normalize/validate name ---
         if not dog.name or not dog.name.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Dog name is required.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Dog name is required."
+            )
         name_clean = dog.name.strip()
 
         # --- check uniqueness for this owner (case-insensitive) ---
@@ -99,8 +128,10 @@ def create_dog(
         form_data: Dict[str, Any] = dog.form_data.copy() if dog.form_data else {}
 
         # prefer explicit weight_kg, otherwise check form_data keys
-        weight_kg = dog.weight_kg if dog.weight_kg is not None else (
-            form_data.get("weight_kg") or form_data.get("weight") or None
+        weight_kg = (
+            dog.weight_kg
+            if dog.weight_kg is not None
+            else (form_data.get("weight_kg") or form_data.get("weight") or None)
         )
         if weight_kg is not None:
             form_data["weight_kg"] = weight_kg
@@ -119,9 +150,19 @@ def create_dog(
         if getattr(dog, "symptoms", None) is not None:
             form_data.setdefault("symptoms", getattr(dog, "symptoms"))
 
-        #Generate overview.............
-        generated_overview=call_gpt_chat(merged_string, "overview")
-        generated_protocol=call_gpt_chat(merged_string, "protocol")
+        # Generate overview.............
+        generated_overview = call_gpt_chat(merged_string, "overview")
+        generated_protocol = call_gpt_chat(merged_string, "protocol")
+
+        activities = add_activity(
+            dog.activities,
+            {
+                "title": "Requested doctor for diagnosis",
+                "timestamp": datetime.now(),
+                "description": "Requested a veterinary consultation for diagnosis.",
+                "type": "consultation",
+            },
+        )
 
         # Keep top-level columns for fast queries, and persist the rest into form_data JSON
         new_dog = models.Dog(
@@ -134,7 +175,9 @@ def create_dog(
             notes=dog.notes if dog.notes else form_data.get("behaviorNotes", ""),
             form_data=form_data,
             overview=generated_overview,
-            protocol=generated_protocol
+            protocol=generated_protocol,
+            activities=activities,
+            status="in_review",
         )
 
         db.add(new_dog)
@@ -167,7 +210,11 @@ def create_dog(
                 "weight_kg": new_dog.weight_kg,
                 "notes": new_dog.notes,
                 "form_data": new_dog.form_data,
-                "overview": new_dog.overview
+                "overview": new_dog.overview,
+                "activities": activities,
+                "status": new_dog.status,
+                "protocol": new_dog.protocol,
+                "activities": new_dog.activities
             },
         }
 
@@ -175,18 +222,26 @@ def create_dog(
         # DB-level integrity problem — rollback and return server error
         db.rollback()
         print("create_dog IntegrityError:", ie)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database integrity error creating dog.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database integrity error creating dog.",
+        )
     except HTTPException:
         # re-raise HTTPExceptions (e.g., conflict or bad request)
         raise
     except Exception as e:
         db.rollback()
         print("create_dog unexpected error:", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error creating dog.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error creating dog.",
+        )
 
 
 @router.post("/get-dogs")
-def get_dogs(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def get_dogs(
+    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+):
     try:
         dogs = db.query(models.Dog).filter(models.Dog.owner_id == current_user.id).all()
         return {
@@ -202,25 +257,31 @@ def get_dogs(db: Session = Depends(get_db), current_user: models.User = Depends(
                     "notes": d.notes,
                 }
                 for d in dogs
-            ]
+            ],
         }
     except Exception as e:
         print(e)
-        return {
-            "success": False,
-            "message": "Error fetching dogs"
-        }
+        return {"success": False, "message": "Error fetching dogs"}
+
 
 # --- Get a single dog by ID ---
 @router.post("/get/{dog_id}")
 def get_dog_by_id(
     dog_id: str,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user),
 ):
-    dog = db.query(models.Dog).filter(models.Dog.id == uuid.UUID(dog_id), models.Dog.owner_id == current_user.id).first()
+    dog = (
+        db.query(models.Dog)
+        .filter(
+            models.Dog.id == uuid.UUID(dog_id), models.Dog.owner_id == current_user.id
+        )
+        .first()
+    )
     if not dog:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found"
+        )
     return {
         "success": True,
         "dog": {
@@ -233,9 +294,11 @@ def get_dog_by_id(
             "notes": dog.notes,
             "form_data": dog.form_data,
             "protocol": dog.protocol,
-            "overview": dog.overview
-        }
+            "overview": dog.overview,
+            "progress": dog.progress
+        },
     }
+
 
 # --- Update a dog by ID ---
 @router.put("/update/{dog_id}")
@@ -243,15 +306,25 @@ def update_dog_by_id(
     dog_id: str,
     dog_update: schemas.DogCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user),
 ):
-    dog = db.query(models.Dog).filter(models.Dog.id == uuid.UUID(dog_id), models.Dog.owner_id == current_user.id).first()
-    user_data=dog.form_data["fullFormFields"]or[]
-    dog_form_structure=db.query(models.OnboardingForm).first().json_data or []
+    dog = (
+        db.query(models.Dog)
+        .filter(
+            models.Dog.id == uuid.UUID(dog_id), models.Dog.owner_id == current_user.id
+        )
+        .first()
+    )
+    user_data = dog.form_data["fullFormFields"] or []
+    dog_form_structure = db.query(models.OnboardingForm).first().json_data or []
     # Merge form and user data for AI processing
-    merged_data, merged_string = merge_form_and_user_data_for_ai(dog_form_structure, user_data)
+    merged_data, merged_string = merge_form_and_user_data_for_ai(
+        dog_form_structure, user_data
+    )
     if not dog:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found"
+        )
 
     # Merge form_data
     form_data: Dict[str, Any] = dog.form_data.copy() if dog.form_data else {}
@@ -269,17 +342,37 @@ def update_dog_by_id(
 
     try:
         if "admin" not in dog_update.__dict__ or not dog_update.admin:
-            generated_overview=call_gpt_chat(merged_string, "overview")
-            generated_protocol=call_gpt_chat(merged_string, "protocol")
-            print("Protocol generated ", generated_protocol)
-            dog.overview=generated_overview
-            dog.protocol=generated_protocol
+            activities = add_activity(
+                dog.activities,
+                {
+                    "title": "Meals plans and Protocols updated.",
+                    "timestamp": datetime.now(),
+                    "description": "Doctor has made some changes in your pet's Meals plans and Protocols.",
+                    "type": "consultation",
+                },
+            )
+            generated_overview = call_gpt_chat(merged_string, "overview")
+            generated_protocol = call_gpt_chat(merged_string, "protocol")
+            dog.overview = generated_overview
+            dog.protocol = generated_protocol
         else:
             dog.protocol = dog_update.__dict__["protocol"]
             dog.overview = dog_update.__dict__["overview"]
-    
+            activities = add_activity(
+                dog.activities,
+                {
+                    "title": "Requested doctor for reassessment",
+                    "timestamp": datetime.now(),
+                    "description": "Requested a veterinary consultation for reassessment.",
+                    "type": "consultation",
+                },
+            )
+            dog.status = "in_review"
+
+        dog.activities = activities
         db.commit()
         db.refresh(dog)
+
         # --- create corresponding submission ---
         submission = models.OnboardingSubmission(
             user_id=current_user.id,
@@ -306,27 +399,42 @@ def update_dog_by_id(
                 "notes": dog.notes,
                 "form_data": dog.form_data,
                 "overview": dog.overview,
-                "protocol": dog.protocol
+                "protocol": dog.protocol,
+                "activities": activities,
+                "status": dog.status
             },
         }
     except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database integrity error updating dog")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database integrity error updating dog",
+        )
     except Exception as e:
         db.rollback()
         print("update_dog_by_id error:", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error updating dog")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating dog",
+        )
+
 
 # --- Delete a dog by ID ---
 @router.delete("/delete/{dog_id}")
 def delete_dog_by_id(
     dog_id: str,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user),
 ):
-    dog = db.query(models.Dog).filter(models.Dog.id == dog_id, models.Dog.owner_id == current_user.id).first()
+    dog = (
+        db.query(models.Dog)
+        .filter(models.Dog.id == dog_id, models.Dog.owner_id == current_user.id)
+        .first()
+    )
     if not dog:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found"
+        )
     try:
         db.delete(dog)
         db.commit()
@@ -334,5 +442,84 @@ def delete_dog_by_id(
     except Exception as e:
         db.rollback()
         print("delete_dog_by_id error:", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error deleting dog")
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error deleting dog",
+        )
+
+class DogStatusUpdate(schemas.BaseModel):
+    status: str  # e.g., "in_review", "approved", "rejected"
+
+
+@router.put("/update-status/{dog_id}")
+def update_dog_status(
+    dog_id: str,
+    status_update: DogStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    dog = (
+        db.query(models.Dog)
+        .filter(models.Dog.id == uuid.UUID(dog_id), models.Dog.owner_id == current_user.id)
+        .first()
+    )
+    if not dog:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found"
+        )
+
+    try:
+        # Update dog status
+        dog.status = status_update.status
+
+        # Update submission status (if exists)
+        submission = (
+            db.query(models.OnboardingSubmission)
+            .filter(
+                models.OnboardingSubmission.dog_id == dog.id,
+                models.OnboardingSubmission.user_id == current_user.id,
+            )
+            .order_by(models.OnboardingSubmission.created_at.desc())  # latest submission
+            .first()
+        )
+        if submission:
+            submission.status = status_update.status
+
+        # Add activity log
+        activities = add_activity(
+            dog.activities,
+            {
+                "title": "Diagnosis created",
+                "timestamp": datetime.now(),
+                "description": f"Your dog's diagnosis has been created by the doctor.",
+                "type": "status_update",
+            },
+        )
+        dog.activities = activities
+
+        db.commit()
+        db.refresh(dog)
+
+        return {
+            "success": True,
+            "message": f"Dog status updated to '{status_update.status}'",
+            "dog": {
+                "id": str(dog.id),
+                "name": dog.name,
+                "status": dog.status,
+                "activities": dog.activities,
+            },
+            "submission": {
+                "id": str(submission.id) if submission else None,
+                "status": submission.status if submission else None,
+            }
+            if submission
+            else None,
+        }
+    except Exception as e:
+        db.rollback()
+        print("update_dog_status error:", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating dog status",
+        )

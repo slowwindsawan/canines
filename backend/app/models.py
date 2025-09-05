@@ -134,41 +134,20 @@ class Dog(Base):
     notes = Column(Text)
     overview=Column(JSON, nullable=True)
     protocol=Column(JSON, nullable=True)
+    progress = Column(JSON, nullable=True)
 
     status = Column(String(80), nullable=False, default="approved")
     created_at, updated_at = ts_columns()
 
     owner = relationship("User", back_populates="dogs")
     form_data=Column(JSON, nullable=True)
-    activities = relationship("DogActivity", back_populates="dog", cascade="all, delete-orphan")
+    activities = Column(JSON, nullable=True, default=[])  # list of {type, datetime, notes, details}
     todos = relationship("TodoItem", back_populates="dog", cascade="all, delete-orphan")
     wins = relationship("Win", back_populates="dog", cascade="all, delete-orphan")
-    progress_entries = relationship("DogProgressEntry", back_populates="dog", cascade="all, delete-orphan")
     protocol_assignments = relationship("DogProtocol", back_populates="dog", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("owner_id", "name", name="uq_dogs_owner_name"),
-    )
-
-class DogActivity(Base):
-    __tablename__ = "dog_activities"
-
-    id = uuid_pk()
-    dog_id = Column(UUID(as_uuid=True), ForeignKey("dogs.id", ondelete="CASCADE"), nullable=False, index=True)
-
-    activity_type = Column(SAEnum(ActivityType, native_enum=False), nullable=False, index=True)
-    occurred_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
-    duration_min = Column(Float)
-    calories = Column(Float)
-    activity_metadata = Column(JSON)   # <-- renamed from "metadata"
-    notes = Column(Text)
-
-    created_at, updated_at = ts_columns()
-
-    dog = relationship("Dog", back_populates="activities")
-
-    __table_args__ = (
-        Index("ix_dog_activities_dog_when_type", "dog_id", "occurred_at", "activity_type"),
     )
 
 class TodoItem(Base):
@@ -190,7 +169,6 @@ class TodoItem(Base):
     __table_args__ = (
         Index("ix_todos_dog_status_due", "dog_id", "status", "due_at"),
     )
-
 
 # ---------- Wins, Badges, Achievements ----------
 
@@ -314,27 +292,6 @@ class ProgressMetric(Base):
     description = Column(Text)
 
     created_at, updated_at = ts_columns()
-
-
-class DogProgressEntry(Base):
-    __tablename__ = "dog_progress_entries"
-
-    id = uuid_pk()
-    dog_id = Column(UUID(as_uuid=True), ForeignKey("dogs.id", ondelete="CASCADE"), nullable=False, index=True)
-    metric_id = Column(UUID(as_uuid=True), ForeignKey("progress_metrics.id", ondelete="RESTRICT"), nullable=False, index=True)
-
-    value = Column(Float, nullable=False)
-    measured_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
-
-    notes = Column(Text)
-    created_at, updated_at = ts_columns()
-
-    dog = relationship("Dog", back_populates="progress_entries")
-    metric = relationship("ProgressMetric")
-
-    __table_args__ = (
-        Index("ix_progress_dog_metric_time", "dog_id", "metric_id", "measured_at"),
-    )
 
 class OnboardingForm(Base):
     __tablename__ = "onboarding_form"
