@@ -36,6 +36,8 @@ import Messages from "./pages/admin/Messages";
 import Settings from "./pages/admin/Settings";
 import ProtocolEditor from "./pages/ProtocolEditor";
 import PublicRoute from "./PublicRoute";
+import BlogEditor from "./pages/BlogEditor";
+import BlogList from "./pages/BlogList";
 
 // Layouts
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -88,6 +90,26 @@ const App: React.FC = () => {
                   <AdminRoute>
                     <AdminLayout>
                       <AdminDashboard />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/blogs"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <BlogList />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/blog-editor"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <BlogEditor />
                     </AdminLayout>
                   </AdminRoute>
                 }

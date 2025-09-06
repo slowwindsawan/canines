@@ -112,6 +112,57 @@ class SubmissionOut(BaseModel):
                 "overview": obj.dog.overview,
                 "protocol": obj.dog.protocol,
                 "status": obj.dog.status,
+                "progress": obj.dog.progress
             } if obj.dog else None
         )
     
+# -------- AdminSettings --------
+class AdminSettingsBase(BaseModel):
+    brand_settings: Optional[dict] = None
+    preferences: Optional[dict] = None
+    activities: Optional[dict] = None
+
+class AdminSettingsCreate(AdminSettingsBase):
+    admin_id: UUID
+
+class AdminSettingsUpdate(AdminSettingsBase):
+    pass
+
+class AdminSettingsOut(AdminSettingsBase):
+    id: UUID
+    admin_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+# -------- Articles --------
+class ArticleBase(BaseModel):
+    slug: str
+    title: str
+    content: str
+    summary: Optional[str] = None
+    cover_image: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class ArticleCreate(ArticleBase):
+    author_id: Optional[UUID] = None
+
+class ArticleUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    summary: Optional[str] = None
+    cover_image: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class ArticleOut(ArticleBase):
+    id: UUID
+    author_id: Optional[UUID]
+    published_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True

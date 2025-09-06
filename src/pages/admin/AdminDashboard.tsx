@@ -1,68 +1,95 @@
-import React, { useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useAdmin } from '../../context/AdminContext';
-import { 
-  Users, 
-  FileText, 
-  Bell, 
-  Activity, 
-  AlertTriangle, 
-  CheckCircle, 
+import React, { useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useAdmin } from "../../context/AdminContext";
+import {
+  Users,
+  FileText,
+  Bell,
+  Activity,
+  AlertTriangle,
+  CheckCircle,
   Clock,
   TrendingUp,
-  Shield
-} from 'lucide-react';
-import { jwtRequest } from '../../env';
+  Shield,
+  Notebook,
+  NotebookIcon,
+} from "lucide-react";
+import { jwtRequest } from "../../env";
+import { useGlobalStore } from "../../globalStore";
 
 const AdminDashboard: React.FC = () => {
   const { adminUser, notifications } = useAdmin();
   const [submissions, setSubmissions] = React.useState([]);
+  const { adminSettings, setAdminSettings } = useGlobalStore();
 
-  const pendingSubmissions = submissions.filter(s => s.status === 'pending').length;
-  const urgentCases = submissions.filter(s => s.priority === 'urgent'||s.priority === 'high').length;
-  const unreadNotifications = notifications.filter(n => !n.isRead).length;
-  const underReview = submissions.filter(s => s.status === 'in_review').length;
+  const pendingSubmissions = submissions.filter(
+    (s) => s.status === "pending"
+  ).length;
+  const urgentCases = submissions.filter(
+    (s) => s.priority === "urgent" || s.priority === "high"
+  ).length;
+  const unreadNotifications = notifications.filter((n) => !n.isRead).length;
+  const underReview = submissions.filter(
+    (s) => s.status === "in_review"
+  ).length;
 
   useEffect(() => {
-      // Fetch all submissions sorted by latest date
-      const fetchAllSubmissions = async () => {
-        try {
-          const data = await jwtRequest("/submissions/latest", "POST"); // your FastAPI endpoint
-          console.log("All submissions:", data);
-          setSubmissions(data);
-          return data;
-        } catch (err) {
-          console.error("Failed to fetch submissions:", err);
-        }
-      };
-  
-      // Usage example
-      fetchAllSubmissions().then((submissions) => {
-        console.warn("Fetched submissions:", submissions);
-      });
-    }, []);
+    console.log(adminSettings);
+  }, [adminSettings]);
+
+  useEffect(() => {
+    try {
+      // send to backend
+      (async () => {
+        const response = await jwtRequest(`/admin/settings`, "GET");
+        console.log(response);
+        setAdminSettings(response);
+      })();
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Fetch all submissions sorted by latest date
+    const fetchAllSubmissions = async () => {
+      try {
+        const data = await jwtRequest("/submissions/latest", "POST"); // your FastAPI endpoint
+        console.log("All submissions:", data);
+        setSubmissions(data);
+        return data;
+      } catch (err) {
+        console.error("Failed to fetch submissions:", err);
+      }
+    };
+
+    // Usage example
+    fetchAllSubmissions().then((submissions) => {
+      console.warn("Fetched submissions:", submissions);
+    });
+  }, []);
 
   const quickStats = [
     {
-      title: 'Pending Reviews',
+      title: "Pending Reviews",
       value: pendingSubmissions,
       icon: Clock,
-      color: 'bg-yellow-50 text-yellow-600',
-      href: '/admin/submissions?status=pending'
+      color: "bg-yellow-50 text-yellow-600",
+      href: "/admin/submissions?status=pending",
     },
     {
-      title: 'Urgent Cases',
+      title: "Urgent Cases",
       value: urgentCases,
       icon: AlertTriangle,
-      color: 'bg-red-50 text-red-600',
-      href: '/admin/submissions?priority=urgent'
+      color: "bg-red-50 text-red-600",
+      href: "/admin/submissions?priority=urgent",
     },
     {
-      title: 'Notifications',
+      title: "Notifications",
       value: unreadNotifications,
       icon: Bell,
-      color: 'bg-purple-50 text-purple-600',
-      href: '/admin/notifications'
+      color: "bg-purple-50 text-purple-600",
+      href: "/admin/notifications",
     },
   ];
 
@@ -86,8 +113,11 @@ const AdminDashboard: React.FC = () => {
   ];
 
   const recentActivity = submissions
-    .filter(s => s.reviewedAt)
-    .sort((a, b) => new Date(b.reviewedAt!).getTime() - new Date(a.reviewedAt!).getTime())
+    .filter((s) => s.reviewedAt)
+    .sort(
+      (a, b) =>
+        new Date(b.reviewedAt!).getTime() - new Date(a.reviewedAt!).getTime()
+    )
     .slice(0, 5);
 
   return (
@@ -100,9 +130,7 @@ const AdminDashboard: React.FC = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
                 Admin Dashboard
               </h1>
-              <p className="text-lg text-gray-600">
-                Welcome back, Dr. Lauren
-              </p>
+              <p className="text-lg text-gray-600">Welcome back, Dr. Lauren</p>
             </div>
             <div className="mt-4 sm:mt-0 flex flex-col items-start sm:items-end">
               <div className="flex items-center space-x-2 mb-2">
@@ -129,8 +157,12 @@ const AdminDashboard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                    <p className="text-sm font-medium text-gray-600">
+                      {stat.title}
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900 mt-1">
+                      {stat.value}
+                    </p>
                   </div>
                   <div className={`p-3 rounded-lg ${stat.color}`}>
                     <IconComponent className="h-6 w-6" />
@@ -139,6 +171,24 @@ const AdminDashboard: React.FC = () => {
               </Link>
             );
           })}
+          <Link
+            to={"/admin/blogs"}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Educational contents
+                </p>
+                <p className="text-xl font-bold text-gray-900 mt-1">
+                  Edit your posts
+                </p>
+              </div>
+              <div className={`p-3 rounded-lg bg-green-50 text-green-600`}>
+                <Notebook className="h-6 w-6" />
+              </div>
+            </div>
+          </Link>
         </div>
 
         {/* Quick Actions */}
@@ -152,7 +202,9 @@ const AdminDashboard: React.FC = () => {
                 className={`${action.color} border rounded-xl p-6 transition-all duration-200 hover:shadow-md group`}
               >
                 <div className="flex items-start space-x-4">
-                  <div className={`p-3 rounded-lg bg-white ${action.iconColor}`}>
+                  <div
+                    className={`p-3 rounded-lg bg-white ${action.iconColor}`}
+                  >
                     <IconComponent className="h-6 w-6" />
                   </div>
                   <div className="flex-1">
@@ -173,36 +225,22 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center space-x-2 mb-6">
             <Activity className="h-6 w-6 text-gray-500" />
-            <h3 className="text-xl font-semibold text-gray-900">Recent Activity</h3>
+            <h3 className="text-xl font-semibold text-gray-900">
+              Recent Activity
+            </h3>
           </div>
-          
+
           <div className="space-y-4">
-            {recentActivity.map((submission) => (
-              <div key={submission.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                <div className="flex-shrink-0">
-                  {submission.status === 'approved' ? (
-                    <CheckCircle className="h-8 w-8 text-green-500" />
-                  ) : (
-                    <Clock className="h-8 w-8 text-yellow-500" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">
-                    {submission.userName} - {submission.dogData.breed}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Status: {submission.status.replace('_', ' ')} • 
-                    {submission.reviewedAt && ` Reviewed ${new Date(submission.reviewedAt).toLocaleDateString()}`}
-                  </p>
-                </div>
-                <div className="flex-shrink-0">
-                  <Link
-                    to={`/admin/submissions/${submission.id}`}
-                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
-                  >
-                    View Details
-                  </Link>
-                </div>
+            {adminSettings?.activities?.map((submission) => (
+              <div
+                key={`${submission.dog_id}-${submission.timestamp}`}
+                className="p-4 mb-2 rounded-md bg-brand-midgrey text-white border border-white/10"
+              >
+                <p className="text-sm font-medium">{submission.message}</p>
+                <p className="text-xs text-white/60">
+                  Status: {submission.status} ·{" "}
+                  {new Date(submission.timestamp).toLocaleString()}
+                </p>
               </div>
             ))}
           </div>

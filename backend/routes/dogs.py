@@ -472,33 +472,72 @@ def update_dog_status(
         # Update dog status
         dog.status = status_update.status
 
-        # Update submission status (if exists)
+        # Fetch the latest submission
         submission = (
             db.query(models.OnboardingSubmission)
             .filter(
                 models.OnboardingSubmission.dog_id == dog.id,
                 models.OnboardingSubmission.user_id == current_user.id,
             )
-            .order_by(models.OnboardingSubmission.created_at.desc())  # latest submission
+            .order_by(models.OnboardingSubmission.created_at.desc())
             .first()
         )
+
         if submission:
+            # Update latest submission
             submission.status = status_update.status
 
-        # Add activity log
-        activities = add_activity(
-            dog.activities,
+            # Fetch previous submissions with 'pending' status
+            previous_pending = (
+                db.query(models.OnboardingSubmission)
+                .filter(
+                    models.OnboardingSubmission.dog_id == dog.id,
+                    models.OnboardingSubmission.user_id == current_user.id,
+                    models.OnboardingSubmission.id != submission.id,  # exclude latest
+                    models.OnboardingSubmission.status == "pending",
+                )
+                .all()
+            )
+
+            # Mark previous pending submissions as rejected
+            for prev in previous_pending:
+                prev.status = "rejected"
+
+        # Add dog activity log (prepend, keep latest only)
+        dog.activities = [
             {
-                "title": "Diagnosis created",
-                "timestamp": datetime.now(),
-                "description": f"Your dog's diagnosis has been created by the doctor.",
+                "title": "Diagnosis updated/created",
+                "timestamp": datetime.now().isoformat(),
+                "description": f"Your dog's diagnosis has been created/updated by the doctor.",
                 "type": "status_update",
-            },
-        )
-        dog.activities = activities
+            }
+        ] + (dog.activities or [])
+        dog.activities = dog.activities[:10]  # keep max 10
+
+        # -------- Update AdminSettings.activities -------- #
+        admin_settings = db.query(models.AdminSettings).first()
+        if not admin_settings:
+            admin_settings = models.AdminSettings(admin_id=current_user.id, activities=[])
+            db.add(admin_settings)
+
+        admin_activities = admin_settings.activities or []
+        new_admin_activity = {
+            "dog_id": str(dog.id),
+            "user_id": str(current_user.id),
+            "status": status_update.status,
+            "timestamp": datetime.now().isoformat(),
+            "message": f"Dog '{dog.name}' status updated to '{status_update.status}'.",
+        }
+
+        admin_activities = [new_admin_activity] + admin_activities
+        admin_settings.activities = admin_activities[:10]  # max 10
+
+        admin_settings.admin_id = current_user.id  # track who last updated
 
         db.commit()
         db.refresh(dog)
+        db.refresh(admin_settings)
+        db.refresh(submission)
 
         return {
             "success": True,
@@ -515,7 +554,13 @@ def update_dog_status(
             }
             if submission
             else None,
+            "admin_settings": {
+                "id": str(admin_settings.id),
+                "last_updated_by": str(admin_settings.admin_id),
+                "activities": admin_settings.activities,
+            },
         }
+
     except Exception as e:
         db.rollback()
         print("update_dog_status error:", e)
@@ -523,3 +568,4 @@ def update_dog_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error updating dog status",
         )
+    

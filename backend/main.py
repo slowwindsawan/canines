@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from app.auth_config import SECRET_KEY, ALGORITHM
-from routes import auth, formbuilder, dogs, submissions
+from routes import auth, formbuilder, dogs, submissions, admin, articles
 from app import models
 import uvicorn
 from app.dependecies import get_current_user
@@ -13,6 +13,8 @@ app.include_router(auth.router)
 app.include_router(formbuilder.router)
 app.include_router(dogs.router)
 app.include_router(submissions.router)
+app.include_router(admin.router)
+app.include_router(articles.router)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -21,7 +23,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allow POST, GET, OPTIONS, etc.
     allow_headers=["*"],  # Allow Authorization, Content-Type, etc.
 )
-
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

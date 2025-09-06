@@ -9,7 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
+from sqlalchemy import CheckConstraint
 from app.config import Base  # your existing Base
 
 
@@ -345,3 +345,41 @@ class AdminNotification(Base):
     __table_args__ = (
         Index("ix_admin_notifications_target_read", "target_user_id", "is_read"),
     )
+
+class AdminSettings(Base):
+    __tablename__ = "admin_settings"
+
+    id = uuid_pk()
+    singleton_key = Column(Integer, nullable=False, unique=True, default=1)  # Always 1
+
+    admin_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    brand_settings = Column(JSON, nullable=False, default=lambda: {"logo": None, "primary_color": "#2c3e50"})
+    preferences = Column(JSON, nullable=False, default=lambda: {"email_notifications": True})
+    activities = Column(JSON, nullable=False, default=list)
+
+    created_at, updated_at = ts_columns()
+
+    admin = relationship("User", foreign_keys=[admin_id])
+
+    __table_args__ = (
+        CheckConstraint("singleton_key = 1", name="check_singleton_key"),
+    )
+
+class Article(Base):
+    __tablename__ = "articles"
+
+    id = uuid_pk()
+    slug = Column(String(150), unique=True, nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    summary = Column(Text, nullable=True)
+    cover_image = Column(String(255), nullable=True)  # optional image
+
+    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    tags = Column(JSON, nullable=True)   # e.g., ["nutrition", "training"]
+
+    published_at = Column(DateTime(timezone=True))
+    created_at, updated_at = ts_columns()
+
+    author = relationship("User")

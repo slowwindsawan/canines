@@ -214,13 +214,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const getMetricColor = (value: number) => {
-    if (value >= 80) return "bg-green-500";
-    if (value >= 60) return "bg-yellow-500";
-    if (value >= 40) return "bg-orange-500";
-    return "bg-red-500";
-  };
-
   const symptomOptions = [
     { id: "loose_stool", label: "Loose stool" },
     { id: "diarrhea", label: "Diarrhea" },
@@ -997,7 +990,6 @@ const Dashboard: React.FC = () => {
                           <p className="mb-4 text-sm">
                             Estimated time: 9 days, Next review: 03/05/2026
                           </p>
-                          {console.log(selectedDog)}
                           {selectedDog?.overview &&
                           selectedDog?.overview?.daily_meal_plan ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

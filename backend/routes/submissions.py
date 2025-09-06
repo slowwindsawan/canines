@@ -118,7 +118,7 @@ def add_progress_report(
         "improvement_score": report.improvementScore,
         "timestamp": datetime.utcnow().isoformat(),
     }
-    dog.progress = dog.progress + [new_entry]
+    dog.progress = [new_entry]+dog.progress
     db.commit()
     db.refresh(dog)
 

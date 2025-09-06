@@ -28,3 +28,6 @@
   100% { transform: translateY(-10%) rotate(360deg); }
 }
 
+.ql-toolbar, .ql-container {
+  border: none !important;
+}

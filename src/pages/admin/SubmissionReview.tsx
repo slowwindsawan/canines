@@ -36,8 +36,13 @@ function mergeProtocols(firstJson: any, secondJson: any) {
 }
 
 const SubmissionReview: React.FC = () => {
-  const { submissions, updateSubmissionStatus, assignSubmission, adminUser, set } =
-    useAdmin();
+  const {
+    submissions,
+    updateSubmissionStatus,
+    assignSubmission,
+    adminUser,
+    set,
+  } = useAdmin();
   const [reviewNotes, setReviewNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { submission, setSubmission } = useGlobalStore();
@@ -63,15 +68,19 @@ const SubmissionReview: React.FC = () => {
   const handleStatusUpdate = async (status: any) => {
     setIsSubmitting(true);
     try {
-      const data = await jwtRequest("/dogs/update-status/"+submission?.dog?.id, "PUT", {status}); // your FastAPI endpoint
-      if(data?.success){
-        let t=submission
-        t.status=status
-        setSubmission(t)
-        alert("Successfully approvved.")
+      const data = await jwtRequest(
+        "/dogs/update-status/" + submission?.dog?.id,
+        "PUT",
+        { status }
+      ); // your FastAPI endpoint
+      if (data?.success) {
+        let t = submission;
+        t.status = status;
+        setSubmission(t);
+        alert("Successfully approvved.");
       }
     } catch (err) {
-      alert("Could not approve. Please try again.")
+      alert("Could not approve. Please try again.");
       console.error("Failed to fetch submissions:", err);
     }
     setIsSubmitting(false);
@@ -260,26 +269,29 @@ const SubmissionReview: React.FC = () => {
                     AI Generated
                   </h2>
                 </div>
-                <div
-                  className="flex items-center space-x-2 mb-1 text-gray-500 cursor-pointer rounded-3xl bg-brand-offwhite px-3 py-0.5 hover:shadow-sm transition-shadow hover:bg-slate-600 hover:text-white"
-                  onClick={() => {
-                    // Navigate to protocol editor with current submission ID
-                    window.open(
-                      `/admin/protocol-editor/${submission.dog.id}`,
-                      "_self"
-                    );
-                  }}
-                >
-                  <PencilLine size={14} />
-                  <span className="text-small tracking-tight">Edit</span>
-                </div>
+                {submission.status !== "rejected" && (
+                  <div
+                    className="flex items-center space-x-2 mb-1 text-gray-500 cursor-pointer rounded-3xl bg-brand-offwhite px-3 py-0.5 hover:shadow-sm transition-shadow hover:bg-slate-600 hover:text-white"
+                    onClick={() => {
+                      // Navigate to protocol editor with current submission ID
+                      window.open(
+                        `/admin/protocol-editor/${submission.dog.id}`,
+                        "_self"
+                      );
+                    }}
+                  >
+                    <PencilLine size={14} />
+                    <span className="text-small tracking-tight">Edit</span>
+                  </div>
+                )}
               </div>
 
               {renderProtocol(
                 mergeProtocols(
                   submission?.dog?.overview || {},
                   submission?.dog?.protocol || {}
-                )
+                ),
+                submission?.dog || {} // ensure dog is always an object
               )}
             </div>
 
@@ -385,7 +397,11 @@ const SubmissionReview: React.FC = () => {
                 <div className="space-y-2">
                   <button
                     onClick={() => handleStatusUpdate("approved")}
-                    disabled={isSubmitting || submission.status === "approved"}
+                    disabled={
+                      isSubmitting ||
+                      submission.status === "approved" ||
+                      submission.status === "rejected"
+                    }
                     className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
                   >
                     <CheckCircle className="h-4 w-4" />

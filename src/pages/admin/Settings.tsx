@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAdmin } from "../../context/AdminContext";
 import {
   Settings as SettingsIcon,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { TonePreset, FeedbackEntry } from "../../types";
 import FormBuilder from "./form-builder/FormBuilder";
+import { jwtRequest } from "../../env";
 
 const Settings: React.FC = () => {
   const {
@@ -218,7 +219,7 @@ const Settings: React.FC = () => {
 
   const closeBuilder = () => {
     setShowFormBuilder(false);
-    setActiveTab('branding')
+    setActiveTab("branding");
   };
 
   return (
