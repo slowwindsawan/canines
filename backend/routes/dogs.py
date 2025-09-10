@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from sqlalchemy import func
@@ -10,6 +10,17 @@ from typing import Any, Dict
 from ai.openai import call_gpt_chat
 from datetime import datetime
 from typing import List, Optional, Dict
+from uuid import UUID
+from pydantic import BaseModel
+import os
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from botocore.client import Config
+from uuid import uuid4
+from dotenv import load_dotenv
+
+# Load .env from parent directory
+load_dotenv()
 
 router = APIRouter(prefix="/dogs", tags=["dogs"])
 
@@ -295,7 +306,8 @@ def get_dog_by_id(
             "form_data": dog.form_data,
             "protocol": dog.protocol,
             "overview": dog.overview,
-            "progress": dog.progress
+            "progress": dog.progress,
+            "image_url": dog.image_url
         },
     }
 
@@ -304,7 +316,7 @@ def get_dog_by_id(
 @router.put("/update/{dog_id}")
 def update_dog_by_id(
     dog_id: str,
-    dog_update: schemas.DogCreate,
+    dog_update: schemas.DogUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -569,3 +581,263 @@ def update_dog_status(
             detail="Error updating dog status",
         )
     
+class DogUpdateByPayload(BaseModel):
+    id: UUID
+    name: Optional[str] = None
+    breed: Optional[str] = None
+    sex: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    weight_kg: Optional[float] = None
+    notes: Optional[str] = None
+    form_data: Optional[Dict[str, Any]] = None
+    overview: Optional[Dict[str, Any]] = None
+    protocol: Optional[Dict[str, Any]] = None
+    activities: Optional[List[Dict[str, Any]]] = None
+    admin: Optional[bool] = None
+    status: Optional[str] = None
+    progress: Optional[Any] = None
+
+    class Config:
+        orm_mode = True
+
+@router.put("/update-by-payload")
+def update_dog_by_payload(
+    payload: DogUpdateByPayload,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    dog = (
+        db.query(models.Dog)
+        .filter(models.Dog.id == payload.id, models.Dog.owner_id == current_user.id)
+        .first()
+    )
+    if not dog:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found")
+
+    # safe read & merge form_data (shallow merge)
+    form_data: Dict[str, Any] = dog.form_data.copy() if dog.form_data else {}
+    if payload.form_data:
+        form_data.update(payload.form_data)
+    dog.form_data = form_data
+
+    # apply top-level fields (use payload values when provided)
+    dog.name = payload.name.strip() if payload.name else dog.name
+    dog.breed = payload.breed or dog.breed
+    dog.sex = payload.sex or dog.sex
+    dog.date_of_birth = payload.date_of_birth or dog.date_of_birth
+    dog.weight_kg = payload.weight_kg or dog.weight_kg
+    dog.notes = payload.notes or form_data.get("behaviorNotes", dog.notes)
+
+    # overwrite overview/protocol/progress only if provided in payload
+    if payload.overview is not None:
+        dog.overview = payload.overview
+    if payload.protocol is not None:
+        dog.protocol = payload.protocol
+    if payload.progress is not None:
+        dog.progress = payload.progress
+    if payload.status is not None:
+        dog.status = payload.status
+
+    existing_activities = dog.activities or []
+
+    try:
+        # create appropriate activity (no AI calls)
+        if getattr(payload, "admin", False):
+            activities = add_activity(
+                existing_activities,
+                {
+                    "title": "Requested doctor for reassessment",
+                    "timestamp": datetime.utcnow(),
+                    "description": "Requested a veterinary consultation for reassessment.",
+                    "type": "consultation",
+                },
+            )
+            dog.status = "in_review"
+        else:
+            activities = add_activity(
+                existing_activities,
+                {
+                    "title": "Meals plans and Protocols updated.",
+                    "timestamp": datetime.utcnow(),
+                    "description": "Doctor has made some changes in your pet's Meals plans and Protocols.",
+                    "type": "consultation",
+                },
+            )
+
+        # if client supplied activities, append them
+        if payload.activities:
+            activities = activities + payload.activities
+
+        dog.activities = activities
+
+        db.commit()
+        db.refresh(dog)
+
+        # create corresponding submission
+        submission = models.OnboardingSubmission(
+            user_id=current_user.id,
+            dog_id=dog.id,
+            behaviour_note=form_data.get("behaviorNotes", ""),
+            status="pending",
+            symptoms=form_data.get("symptoms"),
+            confidence=None,
+            diagnosis=None,
+        )
+        db.add(submission)
+        db.commit()
+        db.refresh(submission)
+
+        return {
+            "success": True,
+            "message": "Dog updated successfully",
+            "dog": {
+                "id": str(dog.id),
+                "name": dog.name,
+                "breed": dog.breed,
+                "sex": dog.sex,
+                "date_of_birth": dog.date_of_birth,
+                "weight_kg": dog.weight_kg,
+                "notes": dog.notes,
+                "form_data": dog.form_data,
+                "overview": dog.overview,
+                "protocol": dog.protocol,
+                "activities": dog.activities,
+                "status": dog.status,
+                "progress": dog.progress,
+            },
+            "submission_id": str(submission.id),
+        }
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database integrity error updating dog",
+        )
+    except Exception as e:
+        db.rollback()
+        print("update_dog_by_payload error:", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error updating dog"
+        )
+    
+def get_r2_client():
+    return boto3.client(
+        "s3",
+        region_name="auto",  # Dummy region, required
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        endpoint_url=os.getenv("R2_ENDPOINT"),  # https://<account_id>.r2.cloudflarestorage.com
+        config=Config(signature_version="s3v4"),  # ✅ Force correct signing
+    )
+
+def build_r2_public_url(key: str):
+    # Prefer explicit public base if provided
+    base = os.getenv("R2_PUBLIC_BASE_URL")
+    if base:
+        return f"{os.getenv("R2_PUBLIC_DEV")}/{key}"
+    # fallback to {bucket}.{account}.r2.cloudflarestorage.com pattern
+    bucket = os.getenv("R2_BUCKET")
+    account = os.getenv("R2_ACCOUNT_ID")
+    if bucket and account:
+        return f"https://{bucket}.{account}.r2.cloudflarestorage.com/{key}"
+    # final fallback - return key only
+    return key
+
+@router.post("/image")
+async def upload_dog_image(
+    image: UploadFile = File(...),
+    id: Optional[str] = Form(None),  # optional dog id (string UUID)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Upload a dog photo to Cloudflare R2.
+    - `image` : multipart file
+    - `id` (optional) : UUID of existing dog (if present, the dog record will be updated)
+    Returns { success: True, url: <public url>, dog_id?: <id> }
+    """
+    # Basic validations
+    ALLOWED_TYPES = {
+        "image/jpeg",
+        "image/jpg",     # alias
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/pjpeg",   # some browsers use this
+        "application/octet-stream",  # fallback for misreported
+    }
+
+    MAX_BYTES = 8 * 1024 * 1024  # 8 MB, change as needed
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type: {image.content_type}"
+        )
+
+    # read the file into memory up to the limit (we'll stream to R2)
+    contents = await image.read()
+    if len(contents) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large.")
+
+    # Build key and upload
+    bucket = os.getenv("R2_BUCKET")
+    if not bucket:
+        raise HTTPException(status_code=500, detail="R2_BUCKET not configured on server.")
+
+    # Use owner id and a uuid filename for uniqueness
+    ext = ""
+    if image.filename and "." in image.filename:
+        ext = "." + image.filename.rsplit(".", 1)[1]
+    key = f"dogs/{current_user.id}/{uuid4().hex}{ext}"
+
+    try:
+        client = get_r2_client()
+        # upload_fileobj expects a file-like object; use BytesIO
+        from io import BytesIO
+        fileobj = BytesIO(contents)
+
+        # Set ContentType so the object serves with correct MIME type
+        extra_args = {"ContentType": image.content_type}
+        # R2 does not use ACLs like S3; ensure your bucket policy allows public read if you want public access
+        client.upload_fileobj(fileobj, bucket, key, ExtraArgs=extra_args)
+
+        public_url = build_r2_public_url(key)
+
+        # If an id was passed, try to attach to the dog
+        updated_dog_id = None
+        if id:
+            try:
+                dog_uuid = uuid.UUID(id)
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid dog id format.")
+            dog = db.query(models.Dog).filter(
+                models.Dog.id == dog_uuid,
+                models.Dog.owner_id == current_user.id,
+            ).first()
+            if not dog:
+                raise HTTPException(status_code=404, detail="Dog not found.")
+            # Save URL to dog record (and optionally into form_data)
+            dog.image_url = public_url
+            # also add to form_data for convenience (non-destructive)
+            try:
+                if dog.form_data is None:
+                    dog.form_data = {}
+                dog.form_data["image_url"] = public_url
+            except Exception:
+                # if form_data isn't JSON-serializable for some reason, ignore
+                pass
+            db.commit()
+            db.refresh(dog)
+            updated_dog_id = str(dog.id)
+
+        return {"success": True, "url": public_url, "dog_id": updated_dog_id}
+    except (BotoCoreError, ClientError) as be:
+        # S3 / R2 upload error
+        print("R2 upload error:", be)
+        raise HTTPException(status_code=500, detail="Failed to upload image to storage.")
+    except Exception as e:
+        print("upload_dog_image error:", e)
+        raise HTTPException(status_code=500, detail="Image upload failed.")
+

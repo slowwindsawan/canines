@@ -9,6 +9,7 @@ from app import models
 from app.schemas import *
 from app.config import SessionLocal
 from app.dependecies import get_current_user
+from pydantic import BaseModel, constr
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 # Dependency
@@ -150,3 +151,42 @@ def update_settings(payload: dict, db: Session = Depends(get_db), current_admin:
     db.commit()
     db.refresh(settings)
     return settings
+
+class TipUpdate(BaseModel):
+    tip: constr(max_length=2000)
+
+@router.get("/settings/tip")
+def get_tip(db: Session = Depends(get_db)):
+    """
+    Return the admin 'tip' text. Auto-creates AdminSettings if not present.
+    """
+    settings = db.query(models.AdminSettings).first()
+    if not settings:
+        settings = models.AdminSettings()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return {"tip": settings.tip}
+
+@router.put("/settings/tip")
+def update_tip(
+    payload: TipUpdate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_user),
+):
+    """
+    Update the admin 'tip' text. Requires an authenticated user (current_admin).
+    Sets `admin_id` to the current user to track who updated it.
+    """
+    settings = db.query(models.AdminSettings).first()
+    if not settings:
+        settings = models.AdminSettings(admin_id=current_admin.id, tip=payload.tip)
+        db.add(settings)
+    else:
+        # overwrite tip and record who updated it last
+        settings.tip = payload.tip
+        settings.admin_id = current_admin.id
+
+    db.commit()
+    db.refresh(settings)
+    return {"success": True, "tip": settings.tip}

@@ -81,7 +81,7 @@ const Education: React.FC = () => {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once
+  }, []);
 
   // fetch page from server; reset=true means replace list (used for new search)
   const fetchPage = async (pageNum: number, reset = false) => {
@@ -292,7 +292,7 @@ const Education: React.FC = () => {
                   <button
                     onClick={loadMore}
                     disabled={loadingMore}
-                    className="px-5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-60"
+                    className="px-5 py-2 rounded-lg bg-brand-midgrey text-white hover:bg-brand-charcoal transition disabled:opacity-60"
                   >
                     {loadingMore ? 'Loading…' : 'Load more'}
                   </button>

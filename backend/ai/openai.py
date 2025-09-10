@@ -1,6 +1,7 @@
 import os, requests
 from dotenv import load_dotenv
 import json
+from typing import List, Dict, Optional
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -36,7 +37,10 @@ Only return a JSON response in the following structure:
                 {"title": "...", "description": "..."}
             ]
         }
-    ]
+    ],
+    "estimated_time": <Time>,
+    "next_revision": <Date>,
+    "phase": {"title":<Any of reset, rebuild, strengthen>, "description": <A small phrase explaining the phase>}
 }
 Do not include any explanations outside this JSON and nothing before first '{'.
 """
@@ -101,6 +105,55 @@ Do not include any explanations outside this JSON and nothing before first '{'.
 
     return res
 
+def ask_question(
+    user_message: str,
+    history: Optional[List[Dict[str, str]]] = None,
+    model: str = "gpt-4o",
+    temperature: float = 0.7,
+) -> str:
+    """
+    Let users chat freely with the AI vet assistant.
+    history: optional list of {"role": "user"|"assistant", "content": "..."}
+    Returns the assistant reply string.
+    """
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    system_message = (
+        "You are an expert veterinarian assistant.\n"
+        "Answer user questions about their dog clearly, concisely, and in plain text.\n"
+        "Do not output JSON, only human-readable text."
+    )
+
+    messages = [{"role": "system", "content": system_message}]
+
+    # append history if provided (trusted roles only)
+    if history:
+        for h in history:
+            role = h.get("role")
+            content = h.get("content")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+
+    # finally, append current user message
+    messages.append({"role": "user", "content": user_message})
+
+    payload = {"model": model, "messages": messages, "temperature": temperature}
+
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    data = response.json()
+
+    # safe extraction
+    try:
+        reply = data["choices"][0]["message"]["content"].strip()
+    except Exception:
+        # fallback to a reasonable message
+        reply = "Sorry — I couldn't parse a response. Please try again."
+    return reply
 
 # Example usage
 if __name__ == "__main__":

@@ -93,4 +93,10 @@ const publicRequest = async (
   }
 };
 
-export { BASE_URL, jwtRequest, publicRequest, getToken };
+function isSubscriptionActive(endDate) {
+  const subscriptionEnd = new Date(endDate);
+  const now = new Date();
+  return subscriptionEnd > now;
+}
+
+export { BASE_URL, jwtRequest, publicRequest, getToken, isSubscriptionActive };

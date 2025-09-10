@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   Eye,
   UserCheck,
+  MessageCircle,
+  NotepadText,
 } from "lucide-react";
 import { TonePreset, FeedbackEntry } from "../../types";
 import FormBuilder from "./form-builder/FormBuilder";
@@ -56,9 +58,9 @@ const Settings: React.FC = () => {
 
   const tabs = [
     { id: "branding", name: "Branding", icon: Palette },
-    { id: "tones", name: "Tone Presets", icon: MessageSquare },
-    { id: "feedback", name: "Feedback Management", icon: MessageSquare },
-    { id: "form-builder", name: "Onboard Form Settings", icon: MessageSquare },
+    // { id: "tones", name: "Tone Presets", icon: MessageSquare },
+    // { id: "feedback", name: "Feedback Management", icon: MessageCircle },
+    { id: "form-builder", name: "Onboard Form Settings", icon: NotepadText },
   ];
 
   const handleBrandingSubmit = async (e: React.FormEvent) => {
@@ -369,36 +371,6 @@ const Settings: React.FC = () => {
                                 setBrandingForm((prev) => ({
                                   ...prev,
                                   secondaryColor: e.target.value,
-                                }))
-                              }
-                              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Accent Color
-                          </label>
-                          <div className="flex space-x-2 max-w-md">
-                            <input
-                              type="color"
-                              value={brandingForm.accentColor}
-                              onChange={(e) =>
-                                setBrandingForm((prev) => ({
-                                  ...prev,
-                                  accentColor: e.target.value,
-                                }))
-                              }
-                              className="w-16 h-12 border border-gray-300 rounded-lg"
-                            />
-                            <input
-                              type="text"
-                              value={brandingForm.accentColor}
-                              onChange={(e) =>
-                                setBrandingForm((prev) => ({
-                                  ...prev,
-                                  accentColor: e.target.value,
                                 }))
                               }
                               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"

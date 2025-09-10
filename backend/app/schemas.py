@@ -37,6 +37,7 @@ class OnboardingFormResponse(BaseModel):
 class DogCreate(BaseModel):
     name: str
     breed: Optional[str] = None
+    age: Optional[str] = None
     sex: Optional[str] = None
     date_of_birth: Optional[datetime] = None
     weight_kg: Optional[float] = None
@@ -47,6 +48,23 @@ class DogCreate(BaseModel):
     admin: Optional[bool] = False
     status: Optional[str] = "in_review"  # default status
     progress: Optional[dict]
+
+class DogUpdate(BaseModel):
+    name: Optional[str] = None
+    breed: Optional[str] = None
+    sex: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    weight_kg: Optional[float] = None
+    notes: Optional[str] = None
+    form_data: Optional[Dict[str, Any]] = None
+    overview: Optional[Dict[str, Any]] = None
+    protocol: Optional[Dict[str, Any]] = None
+    admin: Optional[bool] = None
+    status: Optional[str] = None
+    progress: Optional[Dict[str, Any]] = None
+
+    class Config:
+        orm_mode = True
 
 class Dog(BaseModel):
     id: UUID
@@ -163,6 +181,26 @@ class ArticleOut(ArticleBase):
     published_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# -------- Users --------
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+
+class UserProfileOut(BaseModel):
+    id: UUID
+    username: str
+    name: str
+    email: str
+    created_at: datetime
+    subscription_tier: str
+    subscription_status: str
+    subscription_current_period_end: Optional[datetime]
+    is_on_trial: bool
 
     class Config:
         orm_mode = True

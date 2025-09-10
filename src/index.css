@@ -31,3 +31,29 @@
 .ql-toolbar, .ql-container {
   border: none !important;
 }
+
+/* Background colors */
+.bg-brand-offwhite {
+  background-color: #f0f0ec;
+}
+
+.bg-brand-charcoal {
+  background-color: #373737;
+}
+
+.bg-brand-midgrey {
+  background-color: #5A5A5A;
+}
+
+/* Text colors */
+.text-brand-offwhite {
+  color: #f0f0ec;
+}
+
+.text-brand-charcoal {
+  color: #373737;
+}
+
+.text-brand-midgrey {
+  color: #5A5A5A;
+}

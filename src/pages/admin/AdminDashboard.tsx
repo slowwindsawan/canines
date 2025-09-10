@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAdmin } from "../../context/AdminContext";
 import {
@@ -21,6 +21,8 @@ const AdminDashboard: React.FC = () => {
   const { adminUser, notifications } = useAdmin();
   const [submissions, setSubmissions] = React.useState([]);
   const { adminSettings, setAdminSettings } = useGlobalStore();
+  const [tip, setTip] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const pendingSubmissions = submissions.filter(
     (s) => s.status === "pending"
@@ -36,6 +38,25 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     console.log(adminSettings);
   }, [adminSettings]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await jwtRequest("/admin/settings/tip", "PUT", { tip });
+      if (res?.success) {
+        setAdminSettings({...adminSettings, tip: tip})
+        alert("Tip saved successfully.");
+      } else {
+        console.error("save failed:", res);
+        alert("Failed to save tip.");
+      }
+    } catch (err) {
+      console.error("save err:", err);
+      alert("Error saving tip.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -181,7 +202,7 @@ const AdminDashboard: React.FC = () => {
                   Educational contents
                 </p>
                 <p className="text-xl font-bold text-gray-900 mt-1">
-                  Edit your posts
+                  Edit your educational posts
                 </p>
               </div>
               <div className={`p-3 rounded-lg bg-green-50 text-green-600`}>
@@ -221,6 +242,43 @@ const AdminDashboard: React.FC = () => {
           })}
         </div>
 
+        {/* Tips editor */}
+        <section className="p-4 rounded-lg bg-brand-offwhite text-brand-charcoal mb-6">
+          <header className="mb-3 flex items-center justify-between">
+            <h3 className="text-xl font-semibold">Daily Gut Tips For Your Users</h3>
+            <div className="text-sm text-brand-midgrey">
+              {saving ? "Saving…" : "Editable"}
+            </div>
+          </header>
+
+          <textarea
+            value={adminSettings?.tip}
+            onChange={(e) => setTip(e.target.value)}
+            placeholder="Write a helpful tip for users (max 2000 chars)…"
+            maxLength={2000}
+            rows={8}
+            className="w-full p-3 rounded-md shadow-sm border-0 resize-vertical text-sm leading-6 bg-white text-brand-charcoal"
+          />
+
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={save}
+              disabled={saving}
+              className={`px-4 py-2 rounded-md font-medium ${
+                saving 
+                  ? "bg-brand-midgrey text-brand-offwhite cursor-not-allowed"
+                  : "bg-brand-charcoal text-brand-offwhite"
+              }`}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+
+            <div className="ml-auto text-xs text-brand-midgrey">
+              {tip.length}/2000
+            </div>
+          </div>
+        </section>
+
         {/* Recent Activity */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center space-x-2 mb-6">
@@ -245,7 +303,7 @@ const AdminDashboard: React.FC = () => {
             ))}
           </div>
 
-          {recentActivity.length === 0 && (
+          {!adminSettings?.activities?.length && (
             <div className="text-center py-8">
               <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">No recent activity to display</p>

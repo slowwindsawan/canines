@@ -63,6 +63,9 @@ class ProtocolStatus(str, Enum):
 
 
 # ---------- Users & Billing ----------
+class UserRole(str, Enum):
+    USER = "user"
+    ADMIN = "admin"
 
 class User(Base):
     __tablename__ = "users"
@@ -95,7 +98,6 @@ class User(Base):
         Index("ix_users_email_username", "email", "username"),
     )
 
-
 class PaymentEvent(Base):
     """
     Immutable log of Stripe webhook events we care about (invoices, payment_intent, subscription updates).
@@ -119,7 +121,6 @@ class PaymentEvent(Base):
 
 
 # ---------- Dogs & Daily Ops ----------
-
 class Dog(Base):
     __tablename__ = "dogs"
 
@@ -127,6 +128,7 @@ class Dog(Base):
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     name = Column(String(80), nullable=False)
+    image_url = Column(String(512), nullable=True)
     breed = Column(String(120))
     sex = Column(String(20))  # "male"/"female"/"neutered"/etc. (or model an enum later)
     date_of_birth = Column(DateTime(timezone=True))
@@ -357,6 +359,7 @@ class AdminSettings(Base):
     brand_settings = Column(JSON, nullable=False, default=lambda: {"logo": None, "primary_color": "#2c3e50"})
     preferences = Column(JSON, nullable=False, default=lambda: {"email_notifications": True})
     activities = Column(JSON, nullable=False, default=list)
+    tip = Column(String(2000), nullable=False)
 
     created_at, updated_at = ts_columns()
 
