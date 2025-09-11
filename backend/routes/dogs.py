@@ -367,6 +367,7 @@ def update_dog_by_id(
             generated_protocol = call_gpt_chat(merged_string, "protocol")
             dog.overview = generated_overview
             dog.protocol = generated_protocol
+            dog.status = "in_review"
         else:
             dog.protocol = dog_update.__dict__["protocol"]
             dog.overview = dog_update.__dict__["overview"]
@@ -379,8 +380,6 @@ def update_dog_by_id(
                     "type": "consultation",
                 },
             )
-            dog.status = "in_review"
-
         dog.activities = activities
         db.commit()
         db.refresh(dog)
@@ -392,9 +391,10 @@ def update_dog_by_id(
             behaviour_note=form_data.get("behaviorNotes", ""),
             status="pending",
             symptoms=form_data.get("symptoms"),
-            confidence=None,
             diagnosis=None,
+            confidence=dog.protocol.get("confidence", 0) if isinstance(dog.protocol, dict) else 0
         )
+        
         db.add(submission)
         db.commit()
         db.refresh(submission)

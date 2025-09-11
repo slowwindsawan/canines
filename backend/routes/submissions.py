@@ -8,6 +8,8 @@ from app.dependecies import get_current_user
 from datetime import datetime
 import uuid
 from pydantic import BaseModel
+from ai.openai import analyze_health_logs
+import json
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
@@ -107,6 +109,12 @@ def add_progress_report(
 
     if not dog.progress:
         dog.progress = []
+    else:
+        try:
+            if dog.progress:
+                dog.health_summary=analyze_health_logs(json.dumps(dog.progress[-8:]))
+        except Exception as e:
+            print("Could not analyze the dog's health: ",e)
 
     # Append new entry from frontend
     new_entry = {

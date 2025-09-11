@@ -1,7 +1,7 @@
 # app/routers/admin.py  (update)
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, UploadFile, Request
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
 from uuid import UUID
 from datetime import datetime, date, time
 from sqlalchemy import or_, func, desc
@@ -10,6 +10,14 @@ from app.schemas import *
 from app.config import SessionLocal
 from app.dependecies import get_current_user
 from pydantic import BaseModel, constr
+import re, os, boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from botocore.client import Config
+from io import BytesIO
+from dotenv import load_dotenv
+
+# Load .env from parent directory
+load_dotenv()
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 # Dependency
@@ -190,3 +198,240 @@ def update_tip(
     db.commit()
     db.refresh(settings)
     return {"success": True, "tip": settings.tip}
+
+# ------------------------> default CSS template (values will be replaced)
+CSS_TEMPLATE = """/* Background colors */
+
+
+.bg-brand-offwhite {{
+  background-color: {bg_offwhite} !important;
+}}
+
+.bg-brand-charcoal, .from-brand-charcoal, .to-brand-charcol {{
+  background-color: {bg_charcoal} !important;
+}}
+
+.bg-brand-midgrey, .to-brand-midgrey, .from-brand-midgrey {{
+  background-color: {bg_midgrey} !important;
+}}
+
+/* Text colors */
+.text-brand-offwhite {{
+  color: {text_offwhite} !important;
+}}
+
+.text-brand-charcoal {{
+  color: {text_charcoal} !important;
+}}
+
+.text-brand-midgrey {{
+  color: {text_midgrey} !important;
+}}
+"""
+
+HEX_RE = re.compile(r"^#?[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$")
+
+def get_r2_client():
+    return boto3.client(
+        "s3",
+        region_name="auto",  # Dummy region, required
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        endpoint_url=os.getenv("R2_ENDPOINT"),  # https://<account_id>.r2.cloudflarestorage.com
+        config=Config(signature_version="s3v4"),  # ✅ Force correct signing
+    )
+
+def _normalize_hex(value: Optional[str], default: str) -> str:
+    """
+    Ensure hex string starts with '#' and is valid 3 or 6 hex digits.
+    If invalid or None, return default.
+    """
+    if not value:
+        return default
+    v = value.strip()
+    if not v:
+        return default
+    if not v.startswith("#"):
+        v = "#" + v
+    if HEX_RE.match(v):
+        return v
+    return default
+
+def _build_public_url_for_key(key: str) -> str:
+    """
+    Build a public URL for the object key without relying on possibly-broken helpers.
+    Priority:
+    1) R2_PUBLIC_BASE_URL if set (use it as base)
+    2) fallback to https://{bucket}.{account}.r2.cloudflarestorage.com/{key}
+    3) final fallback: return key
+    """
+    base = os.getenv("R2_PUBLIC_BASE_URL")
+    if base:
+        return f"{base.rstrip('/')}/{key}"
+    bucket = os.getenv("R2_BUCKET")
+    account = os.getenv("R2_ACCOUNT_ID")
+    if bucket and account:
+        return f"https://{bucket}.{account}.r2.cloudflarestorage.com/{key}"
+    return key
+
+@router.post("/save-settings")
+async def save_settings(
+    request: Request,
+    current_user: "models.User" = Depends(get_current_user),
+):
+    """
+    Save theme settings as styles.css in R2 and optionally save a logo image.
+    Accepts application/json OR multipart/form-data (with optional file field 'logo').
+    """
+
+    def _get_value(source: Any, *keys):
+        for k in keys:
+            try:
+                if isinstance(source, dict):
+                    if k in source and source[k] is not None:
+                        return source[k]
+                else:
+                    # FormData-like object
+                    v = source.get(k)
+                    if v is not None:
+                        return v
+            except Exception:
+                continue
+        return None
+
+    content_type = (request.headers.get("content-type") or "").lower()
+    is_json = content_type.startswith("application/json")
+
+    # defaults
+    defaults = {
+        "bg_offwhite": "#f0f0ec",
+        "bg_charcoal": "#373737",
+        "bg_midgrey": "#5A5A5A",
+        "text_offwhite": "#f0f0ec",
+        "text_charcoal": "#373737",
+        "text_midgrey": "#5A5A5A",
+    }
+
+    form_source = None
+    logo_upload = None
+
+    if is_json:
+        payload = await request.json()
+        form_source = payload
+        logo_upload = None
+        print("save_settings: received JSON payload")
+    else:
+        form = await request.form()
+        form_source = form
+        print("save_settings: received form payload; keys:", list(form.keys()))
+        # candidate may be UploadFile or string
+        candidate = form.get("logo") or form.get("logoFile") or form.get("file")
+        # robust detection: check UploadFile type or fallback on attributes typical of files
+        if candidate is not None:
+            from fastapi import UploadFile as FastAPIUploadFile
+            if isinstance(candidate, FastAPIUploadFile) or (
+                hasattr(candidate, "filename") and hasattr(candidate, "content_type")
+            ):
+                logo_upload = candidate
+                print("logo candidate detected:", getattr(candidate, "filename", None))
+            else:
+                logo_upload = None
+
+    # read color fields (support multiple naming variants)
+    bg_offwhite = _get_value(form_source, "bg_offwhite", "bgOffwhite", "brandOffwhite", "brand_offwhite")
+    bg_charcoal = _get_value(form_source, "bg_charcoal", "bgCharcoal", "brandCharcoal", "brand_charcoal")
+    bg_midgrey = _get_value(form_source, "bg_midgrey", "bgMidgrey", "brandMidgrey", "brand_midgrey", "brandMidGrey")
+
+    text_offwhite = _get_value(form_source, "text_offwhite", "textOffwhite", "textOffWhite", "text_offwhite")
+    text_charcoal = _get_value(form_source, "text_charcoal", "textCharcoal", "text_charcoal")
+    text_midgrey = _get_value(form_source, "text_midgrey", "textMidgrey", "text_midgrey")
+
+    # fallback + normalize
+    bg_offwhite = _normalize_hex(bg_offwhite, defaults["bg_offwhite"])
+    bg_charcoal = _normalize_hex(bg_charcoal, defaults["bg_charcoal"])
+    bg_midgrey = _normalize_hex(bg_midgrey, defaults["bg_midgrey"])
+    text_offwhite = _normalize_hex(text_offwhite, defaults["text_offwhite"])
+    text_charcoal = _normalize_hex(text_charcoal, defaults["text_charcoal"])
+    text_midgrey = _normalize_hex(text_midgrey, defaults["text_midgrey"])
+
+    # Build CSS bytes
+    css_content = CSS_TEMPLATE.format(
+        bg_offwhite=bg_offwhite,
+        bg_charcoal=bg_charcoal,
+        bg_midgrey=bg_midgrey,
+        text_offwhite=text_offwhite,
+        text_charcoal=text_charcoal,
+        text_midgrey=text_midgrey,
+    ).encode("utf-8")
+
+    bucket = os.getenv("R2_BUCKET")
+    if not bucket:
+        raise HTTPException(status_code=500, detail="R2_BUCKET not configured on server.")
+
+    # Upload CSS using put_object (simpler and returns metadata)
+    try:
+        client = get_r2_client()
+        css_key = "styles.css"
+        put_resp = client.put_object(Bucket=bucket, Key=css_key, Body=css_content, ContentType="text/css")
+        print("styles.css put_object response:", put_resp)
+        css_url = _build_public_url_for_key(css_key)
+    except (BotoCoreError, ClientError) as be:
+        print("R2 upload error (css):", be)
+        raise HTTPException(status_code=500, detail="Failed to upload styles.css to storage.")
+    except Exception as e:
+        print("save_settings css error:", e)
+        raise HTTPException(status_code=500, detail="Failed to save styles.css.")
+
+    logo_url = None
+    if logo_upload:
+        # If logo_upload is a starlette UploadFile-like object -> read bytes
+        try:
+            # UploadFile may provide .file or .read()
+            if hasattr(logo_upload, "read"):
+                contents = await logo_upload.read()
+                filename = getattr(logo_upload, "filename", None)
+                content_type = getattr(logo_upload, "content_type", None)
+            else:
+                # fallback: it might be a path or string, reject gracefully
+                raise HTTPException(status_code=400, detail="Unable to read uploaded logo file.")
+        except Exception as e:
+            print("error reading uploaded logo:", e)
+            raise HTTPException(status_code=400, detail="Failed to read uploaded logo file.")
+
+        MAX_LOGO_BYTES = 4 * 1024 * 1024
+        if len(contents) > MAX_LOGO_BYTES:
+            raise HTTPException(status_code=413, detail="Logo file too large (max 4 MB).")
+
+        # derive extension
+        ext = None
+        if filename and "." in filename:
+            ext = filename.rsplit(".", 1)[1].lower()
+        else:
+            if content_type and "/" in content_type:
+                ext = content_type.split("/", 1)[1]
+        if not ext:
+            ext = "png"
+
+        allowed_exts = {"png", "jpg", "jpeg", "webp", "gif", "svg"}
+        if ext not in allowed_exts:
+            if ext == "pjpeg":
+                ext = "jpg"
+            else:
+                ext = "png"
+
+        logo_key = f"logo.{ext}"
+        try:
+            put_resp = client.put_object(Bucket=bucket, Key=logo_key, Body=contents, ContentType=(content_type or f"image/{ext}"))
+            print("logo put_object response:", put_resp)
+            logo_url = _build_public_url_for_key(logo_key)
+        except (BotoCoreError, ClientError) as be:
+            print("R2 upload error (logo):", be)
+            raise HTTPException(status_code=500, detail="Failed to upload logo to storage.")
+        except Exception as e:
+            print("save_settings logo error:", e)
+            raise HTTPException(status_code=500, detail="Failed to save logo.")
+
+    # Debug print final urls
+    print("save_settings returning ", {"css_url": css_url, "logo_url": logo_url})
+
+    return {"success": True, "css_url": css_url, "logo_url": logo_url}

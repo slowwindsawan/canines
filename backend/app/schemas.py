@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, Optional, List
 from uuid import UUID
 from datetime import datetime
@@ -61,10 +61,9 @@ class DogUpdate(BaseModel):
     protocol: Optional[Dict[str, Any]] = None
     admin: Optional[bool] = None
     status: Optional[str] = None
-    progress: Optional[Dict[str, Any]] = None
+    progress: Optional[List[Dict[str, Any]]] = None  # now accepts a list
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
 
 class Dog(BaseModel):
     id: UUID

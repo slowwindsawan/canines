@@ -143,6 +143,7 @@ class Dog(Base):
 
     owner = relationship("User", back_populates="dogs")
     form_data=Column(JSON, nullable=True)
+    health_summary = Column(JSON, nullable=True)
     activities = Column(JSON, nullable=True, default=[])  # list of {type, datetime, notes, details}
     todos = relationship("TodoItem", back_populates="dog", cascade="all, delete-orphan")
     wins = relationship("Win", back_populates="dog", cascade="all, delete-orphan")

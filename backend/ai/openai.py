@@ -7,6 +7,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 from datetime import datetime
 
+
 def call_gpt_chat(
     user_message: str,
     subject: str,
@@ -14,10 +15,13 @@ def call_gpt_chat(
     assistant_message: str = None,
     temperature: float = 0.7,
 ):
-    if subject=="overview":
-        system_message="""
+    if subject == "overview":
+        system_message = (
+            """
 You are an expert veterinarian. 
-Based on the dog's description form provided, medical standards, and scientific knowledge, provide accurate information to diagnose and guide the dog's health. Today's date is """ + datetime.now().strftime("%Y-%m-%d") + """
+Based on the dog's description form provided, medical standards, and scientific knowledge, provide accurate information to diagnose and guide the dog's health. Today's date is """
+            + datetime.now().strftime("%Y-%m-%d")
+            + """
 Only return a JSON response in the following structure:
 {
     "daily_meal_plan": [
@@ -44,10 +48,14 @@ Only return a JSON response in the following structure:
 }
 Do not include any explanations outside this JSON and nothing before first '{'.
 """
-    elif subject=="protocol":
-        system_message="""
+        )
+    elif subject == "protocol":
+        system_message = (
+            """
 You are an expert veterinarian. 
-Based on the dog's description form provided, medical standards, and scientific knowledge, provide accurate information to diagnose and guide the dog's health. Today's date is """ + datetime.now().strftime("%Y-%m-%d") + """
+Based on the dog's description form provided, medical standards, and scientific knowledge, provide accurate information to diagnose and guide the dog's health. Today's date is """
+            + datetime.now().strftime("%Y-%m-%d")
+            + """
 Only return a JSON response in the following structure:
 {
     "supplements": [
@@ -70,6 +78,7 @@ Only return a JSON response in the following structure:
 }
 Do not include any explanations outside this JSON and nothing before first '{'.
 """
+        )
 
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
@@ -80,7 +89,10 @@ Do not include any explanations outside this JSON and nothing before first '{'.
     # Build message list
     messages = [
         {"role": "system", "content": system_message},
-        {"role": "user", "content": f"""My dog's description form is: \n{user_message}"""}
+        {
+            "role": "user",
+            "content": f"""My dog's description form is: \n{user_message}""",
+        },
     ]
 
     if assistant_message:
@@ -97,13 +109,14 @@ Do not include any explanations outside this JSON and nothing before first '{'.
     data = response.json()
 
     # Assuming at least one choice is returned
-    res={}
+    res = {}
     try:
-        res=json.loads(data["choices"][0]["message"]["content"])
+        res = json.loads(data["choices"][0]["message"]["content"])
     except Exception as e:
         print(e)
 
     return res
+
 
 def ask_question(
     user_message: str,
@@ -155,65 +168,60 @@ def ask_question(
         reply = "Sorry — I couldn't parse a response. Please try again."
     return reply
 
-# Example usage
-if __name__ == "__main__":
-    system = """
+
+def analyze_health_logs(
+    health_logs: str,
+    model: str = "gpt-4o",
+    temperature: float = 0.5,
+) -> Dict:
+    """
+    Analyze dog's health logs and return a JSON with a health score (0-100)
+    and additional insights.
+    """
+
+    system_message = """
 You are an expert veterinarian. 
-Based on the dog's description form provided, medical standards, and scientific knowledge, provide accurate information to diagnose and guide the dog's health. Today's date is """ + datetime.now().strftime("%Y-%m-%d") + """.
-Only return a JSON response in the following structure:
-
+You will analyze the dog's health logs (daily updates, symptoms, activity, meals, etc.).
+Return only a JSON object with the following structure:
 {
-    "daily_meal_plan": [
-        {"title": "Breakfast", "description": "..."},
-        {"title": "Lunch", "description": "..."},
-        {"title": "Dinner", "description": "..."}
-    ],
-    "what_to_do_goals": [
-        {
-            "title": "...",
-            "description": "...",
-            "priority": "...",
-            "due_date": "...",
-            "completed": false,
-            "id": <add unique number here>,
-            "achievement_badges": [
-                {"title": "...", "description": "..."}
-            ]
-        }
-    ]
+    "health_score": <0-100>,
+    "key_observations": ["...", "..."],
+    "recommendations": ["...", "..."],
+    "confidence": <0-100>
 }
-
 Do not include any explanations outside this JSON and nothing before first '{'.
 """
 
-    user = """
-    Field: Dog's Name
-User value: haskldfhklj
----
-Field: Breed
-User value: hklhaskldhf
----
-Field: Age (years)
-User value: 2
----
-Field: Weight (kg)
-User value: 22
----
-Field: Stool Type
-User value: normal
----
-Field: Symptoms
-User value: ['diarrhea']
----
-Field: Behavior Notes
-User value: bkhkhkj
----
-Field: Color
-User value: black
-Description: Color of the dog.
----"""
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": f"Here are the dog's health logs:\n{health_logs}"},
+    ]
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    data = response.json()
+
     try:
-        reply = call_gpt_chat(user, "protocol")
-        print("Assistant:", reply)
+        result = json.loads(data["choices"][0]["message"]["content"])
     except Exception as e:
-        print("Error:", e)
+        print("Error parsing JSON:", e)
+        result = {
+            "health_score": 0,
+            "key_observations": [],
+            "recommendations": [],
+            "confidence": 0,
+        }
+
+    return result
