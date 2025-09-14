@@ -271,7 +271,6 @@ def get_dogs(
             ],
         }
     except Exception as e:
-        print(e)
         return {"success": False, "message": "Error fetching dogs"}
 
 

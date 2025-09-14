@@ -752,7 +752,7 @@ const Intake: React.FC = () => {
             </div>
           </div>
 
-          {!isSubscriptionActive(user?.subscription_current_period_end) ? (
+          {isSubscriptionActive(user?.subscription_current_period_end) ? (
             <>
               <form
                 onSubmit={(e) => {
@@ -822,9 +822,14 @@ const Intake: React.FC = () => {
                           )}
                         </div>
 
-                        {field.aiText ? (
+                        {/* {field.aiText ? (
                           <p className="mt-3 text-sm text-indigo-700">
                             {field.aiText}
+                          </p>
+                        ) : null} */}
+                        {field.description ? (
+                          <p className="mt-3 text-sm text-indigo-700">
+                            {field.description}
                           </p>
                         ) : null}
 

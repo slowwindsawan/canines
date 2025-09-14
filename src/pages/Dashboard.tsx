@@ -8,7 +8,6 @@ import { useDog } from "../context/DogContext";
 import { useAdmin } from "../context/AdminContext";
 import { mockProgressData, mockProtocols } from "../data/mockData";
 import paws from "../assets/paws.png";
-import foodIcon from "../assets/pet-food.png";
 import healthIcon from "../assets/health.png";
 import energyIcon from "../assets/energy.png";
 import stoolIcon from "../assets/stool.png";
@@ -54,6 +53,7 @@ import HealthUpdateForm from "../components/HealthUpdateForm";
 import { isSubscriptionActive, jwtRequest } from "../env";
 import SubscribeNow from "../components/SubscriptionStatus";
 import PlansComparision from "../components/PlansComparision";
+import GamifiedGoals from "./admin/compoents/GamifiedGoals";
 
 const progressSchema = z.object({
   symptoms: z.array(z.string()),
@@ -383,320 +383,270 @@ const Dashboard: React.FC = () => {
       )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div
-          className="bg-gradient-to-r p-2 text-white mb-8 rounded-2xl relative"
-          style={{ background: "linear-gradient(45deg, #5A5A5A, #313030)" }}
-        >
-          <div
-            className="absolute inset-0 bg-center bg-cover opacity-20"
-            style={{
-              backgroundImage: `url(${paws})`,
-              backgroundSize: "auto",
-            }}
-          ></div>
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-6">
-            <div className="mb-6 lg:mb-0">
-              <h1 className="text-3xl font-bold mb-2 ">
-                Welcome back, {user?.name}!
-              </h1>
-              <p className="text-lg text-blue-100">
-                Your dog's personalised gut health journey starts here
-              </p>
-            </div>
-            <div className="flex flex-col items-start lg:items-end">
-              <div className="flex items-center space-x-2 mb-2">
-                <Award className="h-5 w-5 text-blue-200" />
-                <span className="text-sm text-blue-200">Your Active Plan</span>
-              </div>
-              <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
-                {user?.subscription_tier &&
-                user?.subscription_status == "active"
-                  ? user?.subscription_tier
-                  : "No plan"}
-              </span>
-            </div>
-          </div>
-          {/* Dog Management Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            {selectedDog ? (
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center space-x-6 mb-6 lg:mb-0">
-                  <div className="w-16 h-16 bg-gradient-to-br bg-brand-offwhite rounded-full flex items-center justify-center">
-                    {selectedDog?.image_url ? (
-                      <>
-                        <img
-                          className="w-16 h-16 bg-gradient-to-br bg-brand-offwhite rounded-full flex items-center justify-center"
-                          src={selectedDog?.image_url}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <Dog className="h-8 w-8 text-brand-charcoal" />
-                      </>
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 ">
-                      {selectedDog.name}
-                    </h2>
-                    <p className="text-gray-600">
-                      {selectedDog.breed} • {selectedDog?.form_data?.age} years
-                      old •{" "}
-                      {
-                        selectedDog?.form_data?.fullFormFields?.find(
-                          (f) => f.name === "weight"
-                        )?.value
-                      }{" "}
-                      lbs
-                    </p>
-                    <div className="flex items-center space-x-2 mt-2">
-                      {getTrendIcon(metrics.recentTrend)}
-                      <span
-                        className={`text-sm font-medium ${getTrendColor(
-                          metrics.recentTrend
-                        )}`}
-                      >
-                        Health trend: {metrics.recentTrend}
-                      </span>
-                    </div>
-                  </div>
+        {!user?.subscription_current_period_end ||
+        !isSubscriptionActive(user?.subscription_current_period_end) ? (
+          <></>
+        ) : (
+          <>
+            <div
+              className="bg-gradient-to-r p-2 text-white mb-8 rounded-2xl relative"
+              style={{ background: "linear-gradient(45deg, #5A5A5A, #313030)" }}
+            >
+              <div
+                className="absolute inset-0 bg-center bg-cover opacity-20"
+                style={{
+                  backgroundImage: `url(${paws})`,
+                  backgroundSize: "auto",
+                }}
+              ></div>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-6">
+                <div className="mb-6 lg:mb-0">
+                  <h1 className="text-3xl font-bold mb-2 ">
+                    Welcome back, {user?.name}!
+                  </h1>
+                  <p className="text-lg text-blue-100">
+                    Your dog's personalised gut health journey starts here
+                  </p>
                 </div>
+                <div className="flex flex-col items-start lg:items-end">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Award className="h-5 w-5 text-blue-200" />
+                    <span className="text-sm text-blue-200">
+                      Your Active Plan
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/20 text-white backdrop-blur-sm">
+                    {user?.subscription_tier &&
+                    user?.subscription_status == "active"
+                      ? user?.subscription_tier
+                      : "No plan"}
+                  </span>
+                </div>
+              </div>
+              {/* Dog Management Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                {selectedDog ? (
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-center space-x-6 mb-6 lg:mb-0">
+                      <div className="w-16 h-16 bg-gradient-to-br bg-brand-offwhite rounded-full flex items-center justify-center">
+                        {selectedDog?.image_url ? (
+                          <>
+                            <img
+                              className="w-16 h-16 bg-gradient-to-br bg-brand-offwhite rounded-full flex items-center justify-center"
+                              src={selectedDog?.image_url}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <Dog className="h-8 w-8 text-brand-charcoal" />
+                          </>
+                        )}
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900 ">
+                          {selectedDog.name}
+                        </h2>
+                        <p className="text-gray-600">
+                          {selectedDog.breed} • {selectedDog?.form_data?.age}{" "}
+                          years old •{" "}
+                          {
+                            selectedDog?.form_data?.fullFormFields?.find(
+                              (f) => f.name === "weight"
+                            )?.value
+                          }{" "}
+                          lbs
+                        </p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          {getTrendIcon(metrics.recentTrend)}
+                          <span
+                            className={`text-sm font-medium ${getTrendColor(
+                              metrics.recentTrend
+                            )}`}
+                          >
+                            Health trend: {metrics.recentTrend}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                <div className="flex items-center space-x-3">
-                  {dogs.length > 1 && (
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowDogSelector(!showDogSelector)}
-                        className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors"
-                      >
-                        <span className="text-sm font-medium">Switch Pet</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
+                    <div className="flex items-center space-x-3">
+                      {dogs.length > 1 && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowDogSelector(!showDogSelector)}
+                            className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors"
+                          >
+                            <span className="text-sm font-medium">
+                              Switch Pet
+                            </span>
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
 
-                      {showDogSelector && (
-                        <div className="absolute left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-gray-200 z-10">
-                          <div className="p-3 sm:p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <h3 className="text-base sm:text-lg font-semibold text-gray-900 ">
-                                Select Pet
-                              </h3>
-                              <button
-                                onClick={() => setShowDogSelector(false)}
-                                className="text-gray-400 hover:text-gray-600"
-                              >
-                                <X className="h-5 w-5" />
-                              </button>
-                            </div>
-                            <div className="space-y-2 max-h-60 sm:max-h-64 overflow-y-auto">
-                              {dogs.map((dog) => (
-                                <button
-                                  key={dog.id}
-                                  onClick={() => {
-                                    selectDog(dog.id);
-                                    setShowDogSelector(false);
-                                    setSelectedDog(dog);
-                                  }}
-                                  className={`w-full flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg text-left transition-colors ${
-                                    selectedDog?.id === dog.id
-                                      ? "bg-brand-offwhite"
-                                      : "hover:bg-gray-50"
-                                  }`}
-                                >
-                                  <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center flex-shrink-0">
-                                    <Dog className="h-4 w-4 text-brand-charcoal" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 truncate">
-                                      {dog.name}
-                                    </p>
-                                    <p className="text-xs text-gray-500 truncate">
-                                      {dog.breed} • {dog.age} years old
-                                    </p>
-                                  </div>
-                                  {selectedDog?.id === dog.id && (
-                                    <CheckCircle className="h-5 w-5 text-brand-midgrey flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                            <div className="mt-3 sm:mt-4 pt-3 border-t border-gray-200">
-                              <Link
-                                to={
-                                  isSubscriptionActive(
-                                    user?.subscription_current_period_end
-                                  )
-                                    ? "/intake"
-                                    : "#"
-                                }
-                                onClick={() => {
-                                  if (
-                                    isSubscriptionActive(
-                                      user?.subscription_current_period_end
-                                    )
-                                  ) {
-                                    setShowDogSelector(false);
-                                  }
-                                }}
-                                className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
-                                  isSubscriptionActive(
-                                    user?.subscription_current_period_end
-                                  )
-                                    ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
-                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                }
+                          {showDogSelector && (
+                            <div className="absolute left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-gray-200 z-10">
+                              <div className="p-3 sm:p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 ">
+                                    Select Pet
+                                  </h3>
+                                  <button
+                                    onClick={() => setShowDogSelector(false)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                  >
+                                    <X className="h-5 w-5" />
+                                  </button>
+                                </div>
+                                <div className="space-y-2 max-h-60 sm:max-h-64 overflow-y-auto">
+                                  {dogs.map((dog) => (
+                                    <button
+                                      key={dog.id}
+                                      onClick={() => {
+                                        selectDog(dog.id);
+                                        setShowDogSelector(false);
+                                        setSelectedDog(dog);
+                                      }}
+                                      className={`w-full flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg text-left transition-colors ${
+                                        selectedDog?.id === dog.id
+                                          ? "bg-brand-offwhite"
+                                          : "hover:bg-gray-50"
+                                      }`}
+                                    >
+                                      <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <Dog className="h-4 w-4 text-brand-charcoal" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                          {dog.name}
+                                        </p>
+                                        <p className="text-xs text-gray-500 truncate">
+                                          {dog.breed} • {dog.age} years old
+                                        </p>
+                                      </div>
+                                      {selectedDog?.id === dog.id && (
+                                        <CheckCircle className="h-5 w-5 text-brand-midgrey flex-shrink-0" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="mt-3 sm:mt-4 pt-3 border-t border-gray-200">
+                                  <Link
+                                    to={
+                                      isSubscriptionActive(
+                                        user?.subscription_current_period_end
+                                      )
+                                        ? "/intake"
+                                        : "#"
+                                    }
+                                    onClick={() => {
+                                      if (
+                                        isSubscriptionActive(
+                                          user?.subscription_current_period_end
+                                        )
+                                      ) {
+                                        setShowDogSelector(false);
+                                      }
+                                    }}
+                                    className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
+                                      isSubscriptionActive(
+                                        user?.subscription_current_period_end
+                                      )
+                                        ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
+                                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                    }
                     `}
-                              >
-                                <Plus
-                                  className={`h-5 w-5 ${
-                                    isSubscriptionActive(
-                                      user?.subscription_current_period_end
-                                    )
-                                      ? "text-white"
-                                      : "text-gray-400"
-                                  }`}
-                                />
-                                <span>
-                                  {isSubscriptionActive(
-                                    user?.subscription_current_period_end
-                                  )
-                                    ? "Add New Pet"
-                                    : "Upgrade to Add More Pets"}
-                                </span>
-                              </Link>
+                                  >
+                                    <Plus
+                                      className={`h-5 w-5 ${
+                                        isSubscriptionActive(
+                                          user?.subscription_current_period_end
+                                        )
+                                          ? "text-white"
+                                          : "text-gray-400"
+                                      }`}
+                                    />
+                                    <span>
+                                      {isSubscriptionActive(
+                                        user?.subscription_current_period_end
+                                      )
+                                        ? "Add New Pet"
+                                        : "Upgrade to Add More Pets"}
+                                    </span>
+                                  </Link>
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
 
-                  <Link
-                    to={
-                      isSubscriptionActive(
-                        user?.subscription_current_period_end
-                      )
-                        ? "/intake"
-                        : "#"
-                    }
-                    onClick={() => {
-                      if (
-                        isSubscriptionActive(
-                          user?.subscription_current_period_end
-                        )
-                      ) {
-                        setShowDogSelector(false);
-                      }
-                    }}
-                    className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
-                      isSubscriptionActive(
-                        user?.subscription_current_period_end
-                      )
-                        ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    }
+                      <Link
+                        to={
+                          isSubscriptionActive(
+                            user?.subscription_current_period_end
+                          )
+                            ? "/intake"
+                            : "#"
+                        }
+                        onClick={() => {
+                          if (
+                            isSubscriptionActive(
+                              user?.subscription_current_period_end
+                            )
+                          ) {
+                            setShowDogSelector(false);
+                          }
+                        }}
+                        className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
+                          isSubscriptionActive(
+                            user?.subscription_current_period_end
+                          )
+                            ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        }
                     `}
-                  >
-                    <Plus
-                      className={`h-5 w-5 ${
-                        isSubscriptionActive(
-                          user?.subscription_current_period_end
-                        )
-                          ? "text-white"
-                          : "text-gray-400"
-                      }`}
-                    />
-                    <span>
-                      {isSubscriptionActive(
-                        user?.subscription_current_period_end
-                      )
-                        ? "Add New Pet"
-                        : "Upgrade to Add More Pets"}
-                    </span>
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Dog className="h-10 w-10 text-gray-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2 ">
-                  No pets added yet
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  Start your pet's health journey by adding their profile
-                </p>
-                <Link
-                  to="/intake"
-                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
-                >
-                  <Plus className="h-5 w-5" />
-                  <span>Add Your First Pet</span>
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {showBadgeSuccessPopup ? (
-          <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-              <div
-                className="relative flex flex-col items-center justify-center p-8 rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden 
-    animate-[popIn_0.5s_ease-out_forwards] bg-white"
-              >
-                {/* Sun Glow BEHIND the card */}
-                <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <div className="w-[300px] h-[300px] rounded-full bg-gradient-to-br blur-3xl opacity-40 animate-pulse"></div>
-                </div>
-
-                {/* Looping Confetti */}
-                <div className="absolute inset-0 pointer-events-none animate-[confettiLoop_2s_linear_infinite]">
-                  <svg
-                    className="absolute w-full h-full opacity-40"
-                    viewBox="0 0 200 200"
-                  >
-                    <g fill="none" strokeWidth="4">
-                      <circle cx="50" cy="50" r="4" stroke="#fbbf24" />
-                      <circle cx="150" cy="50" r="4" stroke="#34d399" />
-                      <circle cx="50" cy="150" r="4" stroke="#60a5fa" />
-                      <circle cx="150" cy="150" r="4" stroke="#f87171" />
-                    </g>
-                  </svg>
-                </div>
-
-                {/* Badge Icon */}
-                <div className="relative z-10 bg-gradient-to-r from-amber-400 to-yellow-500 p-6 rounded-full shadow-lg animate-bounce">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-12 w-12 text-white"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 2l2.09 6.26h6.57l-5.33 3.87 2.04 6.3L12 14.77l-5.37 3.66 2.04-6.3-5.33-3.87h6.57L12 2z" />
-                  </svg>
-                </div>
-
-                {/* Text */}
-                <h2 className="mt-6 text-2xl font-bold text-gray-800 relative z-10">
-                  Badge Unlocked!
-                </h2>
-                <p className="text-sm text-gray-600 mt-1 relative z-10">
-                  You’ve earned the “Pet Care Pro” badge 🎉
-                </p>
-
-                {/* CTA */}
-                <button
-                  className="mt-6 px-5 py-2 bg-brand-midgrey text-white rounded-lg text-sm font-medium shadow relative z-10"
-                  onClick={() => setShowBadgeSuccessPopup(false)}
-                >
-                  View Badges
-                </button>
+                      >
+                        <Plus
+                          className={`h-5 w-5 ${
+                            isSubscriptionActive(
+                              user?.subscription_current_period_end
+                            )
+                              ? "text-white"
+                              : "text-gray-400"
+                          }`}
+                        />
+                        <span>
+                          {isSubscriptionActive(
+                            user?.subscription_current_period_end
+                          )
+                            ? "Add New Pet"
+                            : "Upgrade to Add More Pets"}
+                        </span>
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Dog className="h-10 w-10 text-gray-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2 ">
+                      No pets added yet
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      Start your pet's health journey by adding their profile
+                    </p>
+                    <Link
+                      to="/intake"
+                      className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02]"
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span>Add Your First Pet</span>
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </>
-        ) : (
-          <></>
         )}
 
         <div className="w-full rounded-xl bg-gradient-to-r bg-brand-offwhite border border-white p-3 sm:p-4 md:p-5 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
@@ -724,12 +674,19 @@ const Dashboard: React.FC = () => {
             </span>
           </div>
         </div>
-        {user?.subscription_status != "active" ? (
+        {!user?.subscription_current_period_end ||
+        !isSubscriptionActive(user?.subscription_current_period_end) ? (
           <>
-            <SubscribeNow
-              currentStatus={user?.subscription_status}
-              currentPlan={user?.subscription_tier}
-            />
+            {user ? (
+              <>
+                <SubscribeNow
+                  currentStatus={user?.subscription_status}
+                  currentPlan={user?.subscription_tier}
+                />
+              </>
+            ) : (
+              <></>
+            )}
           </>
         ) : (
           <>
@@ -1032,7 +989,7 @@ const Dashboard: React.FC = () => {
                         {activeTab === "overview" && (
                           <div className="space-y-8">
                             {/* Today's Meal Plan */}
-                            {user?.subscription_tier !== "foundation" ? (
+                            {user?.subscription_tier == "foundation" ? (
                               <>
                                 <div className="max-w-3xl mx-auto mt-10 p-8 bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl flex flex-col md:flex-row items-center md:items-start gap-8">
                                   {/* Left Side: Text */}
@@ -1230,7 +1187,7 @@ const Dashboard: React.FC = () => {
                                             "/intake?id=" + selectedDog?.id
                                           )
                                         }
-                                        className="bg-gradient-to-r from-pink-600 to-rose-600 text-white px-6 py-3 rounded-lg font-medium hover:from-pink-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-[1.02] flex items-center space-x-2 mx-auto"
+                                        className="bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white px-6 py-3 rounded-lg font-medium hover:to-brand-charcoal hover:from-brand-midgrey transition-all duration-200 transform hover:scale-[1.02] flex items-center space-x-2 mx-auto"
                                       >
                                         <span>Start Gut Check</span>
                                         <ArrowRight className="h-5 w-5" />
@@ -1265,7 +1222,7 @@ const Dashboard: React.FC = () => {
                             </>
 
                             {/* Wins tracker */}
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                            {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                                 Quick Wins Tracker
                               </h3>
@@ -1305,7 +1262,7 @@ const Dashboard: React.FC = () => {
                                   <p className="text-sm text-gray-600">Good</p>
                                 </div>
                               </div>
-                            </div>
+                            </div> */}
 
                             {/* <div>
                       <h2 className="text-xl font-bold text-gray-900 mb-6 ">
@@ -1427,187 +1384,13 @@ const Dashboard: React.FC = () => {
                         </div>
                       </div>
                     </div> */}
-
-                            {/* Next steps */}
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                              <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-bold text-gray-900 flex items-center">
-                                  <ArrowRight className="h-6 w-6 text-blue-600 mr-2" />
-                                  What to do now (Goals)
-                                </h2>
-                                <div className="text-sm text-gray-600">
-                                  {completedCount}/
-                                  {
-                                    selectedDog?.overview?.what_to_do_goals
-                                      .length
-                                  }{" "}
-                                  completed
-                                </div>
-                              </div>
-
-                              {/* Progress Bar */}
-                              <div className="mb-6">
-                                <div className="flex justify-between text-sm text-gray-600 mb-2">
-                                  <span>Progress</span>
-                                  <span>
-                                    {Math.round(
-                                      (completedCount /
-                                        selectedDog?.overview?.what_to_do_goals
-                                          .length) *
-                                        100
-                                    )}
-                                    %
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className="bg-gradient-to-r from-lime-600 to-brand-charcoal h-2 rounded-full transition-all duration-300"
-                                    style={{
-                                      width: `${
-                                        (completedCount /
-                                          selectedDog?.overview
-                                            ?.what_to_do_goals.length) *
-                                        100
-                                      }%`,
-                                    }}
-                                  ></div>
-                                </div>
-                              </div>
-
-                              {/* Steps List */}
-                              <div className="space-y-4">
-                                {selectedDog?.overview?.what_to_do_goals.map(
-                                  (step) => {
-                                    const isOverdue =
-                                      step.due_date &&
-                                      new Date(step.due_date) < new Date() &&
-                                      !step.completed;
-
-                                    return (
-                                      <div
-                                        key={step.id}
-                                        className={`border-l-4 rounded-lg p-4 transition-all duration-200 ${
-                                          step.completed
-                                            ? "border-l-green-500 bg-green-50 opacity-75"
-                                            : getPriorityColor(step.priority)
-                                        } ${
-                                          isOverdue ? "ring-2 ring-red-200" : ""
-                                        }`}
-                                      >
-                                        <div className="flex items-start space-x-4">
-                                          <button
-                                            onClick={() => {
-                                              toggleStepCompletion(
-                                                step.id || ""
-                                              );
-                                              !step.completed
-                                                ? setShowBadgeSuccessPopup(true)
-                                                : null;
-                                            }}
-                                            className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                                              step.completed
-                                                ? "bg-green-600 border-green-600 text-white"
-                                                : "border-gray-300 hover:border-green-500"
-                                            }`}
-                                          >
-                                            {step.completed && (
-                                              <CheckCircle className="h-4 w-4" />
-                                            )}
-                                          </button>
-
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-center space-x-2 mb-1">
-                                              {/* <IconComponent
-                                      className={`h-4 w-4 ${
-                                        step.completed
-                                          ? "text-green-600"
-                                          : "text-gray-600"
-                                      }`}
-                                    /> */}
-                                              <h3
-                                                className={`font-medium ${
-                                                  step.completed
-                                                    ? "text-green-800 line-through"
-                                                    : "text-gray-900"
-                                                }`}
-                                              >
-                                                {step.title}
-                                              </h3>
-                                              {step.priority === "high" &&
-                                                !step.completed && (
-                                                  <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                                    High Priority
-                                                  </span>
-                                                )}
-                                              {isOverdue && (
-                                                <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                                  Overdue
-                                                </span>
-                                              )}
-                                            </div>
-
-                                            <p
-                                              className={`text-sm ${
-                                                step.completed
-                                                  ? "text-green-700"
-                                                  : "text-gray-600"
-                                              }`}
-                                            >
-                                              {step.description}
-                                            </p>
-
-                                            {step.due_date &&
-                                              !step.completed && (
-                                                <div className="flex items-center space-x-1 mt-2 text-xs text-gray-500">
-                                                  <Clock className="h-3 w-3" />
-                                                  <span>
-                                                    Due:{" "}
-                                                    {new Date(
-                                                      step.due_date
-                                                    ).toLocaleDateString()}
-                                                  </span>
-                                                </div>
-                                              )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-                                )}
-                              </div>
-
-                              {/* Encouragement Message */}
-                              {pendingSteps.length > 0 && (
-                                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                  <p className="text-sm text-blue-800">
-                                    <strong>Keep it up!</strong> You're doing
-                                    great with {selectedDog.name}'s health
-                                    journey.
-                                    {pendingSteps.length === 1
-                                      ? " Just one more step to complete!"
-                                      : ` ${pendingSteps.length} steps remaining.`}
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* All Complete Message */}
-                              {pendingSteps.length === 0 &&
-                                selectedDog?.overview?.what_to_do_goals.length >
-                                  0 && (
-                                  <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                                    <div className="flex items-center space-x-2">
-                                      <CheckCircle className="h-5 w-5 text-green-600" />
-                                      <p className="text-sm text-green-800">
-                                        <strong>Excellent work!</strong> You've
-                                        completed all current action items for{" "}
-                                        {selectedDog.name}. New steps will
-                                        appear as you progress through the gut
-                                        health protocol.
-                                      </p>
-                                    </div>
-                                  </div>
-                                )}
-                            </div>
+                            <GamifiedGoals
+                              selectedDog={selectedDog}
+                              toggleStepCompletion={toggleStepCompletion}
+                              stoolIcon={stoolIcon}
+                              energyIcon={energyIcon}
+                              healthIcon={healthIcon}
+                            />
 
                             {/* Recent Activity and Health Summary */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1678,14 +1461,19 @@ const Dashboard: React.FC = () => {
                                         Overall Progress
                                       </span>
                                       <span className="text-sm text-emerald-600 font-semibold">
-                                        {metrics.overallWellbeing}%
+                                        {selectedDog?.health_summary
+                                          ?.health_score || 0}
+                                        %
                                       </span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-3">
                                       <div
-                                        className="bg-gradient-to-r bg-brand-charcoal bg-brand-midgrey h-3 rounded-full transition-all duration-500"
+                                        className="bg-gradient-to-r bg-brand-charcoal h-3 rounded-full transition-all duration-500"
                                         style={{
-                                          width: `${metrics.overallWellbeing}%`,
+                                          width: `${
+                                            selectedDog?.health_summary
+                                              ?.health_score || 0
+                                          }%`,
                                         }}
                                       ></div>
                                     </div>
@@ -1694,24 +1482,75 @@ const Dashboard: React.FC = () => {
                                   <div>
                                     <div className="flex justify-between items-center mb-2">
                                       <span className="text-sm font-medium text-gray-700">
-                                        Treatment Adherence
+                                        Confidence
                                       </span>
                                       <span className="text-sm text-blue-600 font-semibold">
-                                        {dogProgressData.length > 0
-                                          ? "92%"
-                                          : "0%"}
+                                        {selectedDog?.health_summary
+                                          ?.confidence || 0}
                                       </span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-3">
                                       <div
                                         className="bg-gradient-to-r bg-brand-charcoal bg-brand-midgrey h-3 rounded-full transition-all duration-500"
                                         style={{
-                                          width:
-                                            dogProgressData.length > 0
-                                              ? "92%"
-                                              : "0%",
+                                          width: `${
+                                            selectedDog?.health_summary
+                                              ?.confidence || 0
+                                          }%`,
                                         }}
                                       ></div>
+                                    </div>
+                                  </div>
+
+                                  <div className="p-3 bg-white/80 rounded-lg shadow-sm space-y-4">
+                                    <div>
+                                      <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                                        Key Observations
+                                      </h4>
+                                      <ul className="list-disc list-inside space-y-1">
+                                        {selectedDog?.health_summary
+                                          ?.key_observations?.length ? (
+                                          selectedDog.health_summary.key_observations.map(
+                                            (txt, i) => (
+                                              <li
+                                                key={i}
+                                                className="text-sm text-gray-700 leading-snug break-words"
+                                              >
+                                                {txt}
+                                              </li>
+                                            )
+                                          )
+                                        ) : (
+                                          <li className="text-sm text-gray-500 italic">
+                                            No observations available
+                                          </li>
+                                        )}
+                                      </ul>
+                                    </div>
+
+                                    <div>
+                                      <h4 className="text-sm font-semibold text-gray-800 mb-1">
+                                        Recommendations
+                                      </h4>
+                                      <ul className="list-disc list-inside space-y-1">
+                                        {selectedDog?.health_summary
+                                          ?.recommendations?.length ? (
+                                          selectedDog.health_summary.recommendations.map(
+                                            (txt, i) => (
+                                              <li
+                                                key={i}
+                                                className="text-sm text-gray-700 leading-snug break-words"
+                                              >
+                                                {txt}
+                                              </li>
+                                            )
+                                          )
+                                        ) : (
+                                          <li className="text-sm text-gray-500 italic">
+                                            No recommendations available
+                                          </li>
+                                        )}
+                                      </ul>
                                     </div>
                                   </div>
 
@@ -1873,7 +1712,7 @@ const Dashboard: React.FC = () => {
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                   {/* Meal Plan */}
-                                  {user?.subscription_tier !== "foundation" ? (
+                                  {user?.subscription_tier === "foundation" ? (
                                     <>
                                       <div className="max-w-4xl mx-auto mt-10 p-8 bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl flex flex-col md:flex-row items-center md:items-start gap-8">
                                         {/* Left Side: Text */}
@@ -2072,7 +1911,7 @@ const Dashboard: React.FC = () => {
                                   )}
 
                                   {/* Supplements */}
-                                  {user?.subscription_tier !== "foundation" ? (
+                                  {user?.subscription_tier == "foundation" ? (
                                     <div className="hidden">
                                       <div className="max-w-3xl mx-auto mt-10 p-8 bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl flex flex-col md:flex-row items-center md:items-start gap-8">
                                         {/* Left Side: Text */}
@@ -2449,9 +2288,7 @@ const Dashboard: React.FC = () => {
                                           <br />
                                           <div className="relative inline-block group mt-2 font-bold text-brand-offwhite cursor-pointer text-lg">
                                             Compare plans »{" "}
-                                            <PlansComparision
-                                              position={"top"}
-                                            />
+                                            <PlansComparision position="top" />
                                           </div>
                                         </div>
                                       </div>

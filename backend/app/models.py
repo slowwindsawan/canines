@@ -2,6 +2,8 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from app.form_default import DEFAULT_ONBOARDING_FORM
+from copy import deepcopy
 
 from sqlalchemy import (
     Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Float,
@@ -11,7 +13,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy import CheckConstraint
 from app.config import Base  # your existing Base
-
 
 # ---------- Helpers ----------
 
@@ -66,7 +67,7 @@ class ProtocolStatus(str, Enum):
 class UserRole(str, Enum):
     USER = "user"
     ADMIN = "admin"
-
+    
 class User(Base):
     __tablename__ = "users"
 
@@ -75,6 +76,11 @@ class User(Base):
     name=Column(String(100), nullable=False, default="")
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    role = Column(
+        SAEnum(UserRole, name="userrole", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=UserRole.USER,
+    )
 
     # Stripe fields
     stripe_customer_id = Column(String(120), index=True, unique=True)
@@ -300,7 +306,7 @@ class OnboardingForm(Base):
     __tablename__ = "onboarding_form"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    json_data = Column(JSON, nullable=True)    # default empty array
+    json_data = Column(JSON, nullable=True, default=lambda: deepcopy(DEFAULT_ONBOARDING_FORM))    # default empty array
 
 
 # ---------- Onboarding Submissions & Admin Notifications ----------

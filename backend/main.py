@@ -52,7 +52,8 @@ def read_users_me(current_user: models.User = Depends(get_current_user), db: Ses
         "subscription_tier": current_user.subscription_tier,
         "subscription_current_period_end": current_user.subscription_current_period_end,
         "dogs": current_user.dogs,
-        "tips": tip_value
+        "tips": tip_value,
+        "user_type": current_user.role
     }
 
 if __name__ == "__main__":

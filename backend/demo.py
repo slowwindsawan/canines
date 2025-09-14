@@ -1,39 +1,49 @@
+# reset_stripe_ids.py
+import sys
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# ✅ Import your User model & Base
+from app import models
+from db.database import Base  # adjust to where your Base is defined
 import os
 from dotenv import load_dotenv
-from botocore.client import Config
-import boto3
-from uuid import uuid4
 
-# Load .env
+# Load .env from parent directory
 load_dotenv()
 
-def get_r2_client():
-    return boto3.client(
-        service_name="s3",
-        region_name='auto',  # important for R2
-        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
-        endpoint_url=os.getenv("R2_ENDPOINT")
-    )
+# ---------- CONFIG ----------
+DATABASE_URL = os.getenv("DATABASE_URL")
+# ----------------------------
 
-s3 = get_r2_client()
-bucket_name = "demo"  # replace with your R2 bucket
+def reset_stripe_ids(email: str):
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 1. Check if bucket is accessible
-try:
-    s3.head_bucket(Bucket=bucket_name)
-    print(f"✅ Bucket {bucket_name} is accessible!")
-except Exception as e:
-    print(f"❌ Bucket check failed: {e}")
+    db: Session = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.email == email).first()
+        if not user:
+            print(f"❌ No user found with email {email}")
+            return
 
-# 2. Upload test file
-key = f"test-{uuid4()}.txt"
-with open("test.txt", "w") as f:
-    f.write("Hello from R2!")
+        print(f"✅ Found user {user.id} ({user.email}), resetting Stripe fields...")
 
-s3.upload_file("test.txt", bucket_name, key)
-print(f"✅ Uploaded to {bucket_name}/{key}")
+        user.stripe_customer_id = None
+        user.stripe_subscription_id = None
+        db.add(user)
+        db.commit()
 
-# 3. Download it back
-s3.download_file(bucket_name, key, "downloaded.txt")
-print("✅ Downloaded file contents:", open("downloaded.txt").read())
+        print("✔️ Stripe IDs reset successfully.")
+    except Exception as e:
+        print("❌ Error:", str(e))
+        db.rollback()
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python reset_stripe_ids.py user@example.com")
+    else:
+        reset_stripe_ids(sys.argv[1])

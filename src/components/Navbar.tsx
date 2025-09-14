@@ -24,7 +24,7 @@ const Navbar: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <nav className="bg-primary-200 shadow-sm border-b border-primary-400">
+    <nav className="bg-brand-offwhite shadow-sm border-b border-primary-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
@@ -59,12 +59,12 @@ const Navbar: React.FC = () => {
                   <span className="text-sm text-dark-700">
                     Welcome, {user.name}
                   </span>
-                  <Link
+                  {/* <Link
                     to="/admin"
                     className="bg-primary-300 hover:bg-primary-400 text-dark-800 px-3 sm:px-4 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors"
                   >
                     Admin
-                  </Link>
+                  </Link> */}
                   <button
                     onClick={logout}
                     className="bg-primary-400 hover:bg-primary-500 text-dark-800 px-3 sm:px-4 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors"

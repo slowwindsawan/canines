@@ -11,9 +11,7 @@ const Footer: React.FC = () => {
             <span className="text-lg font-semibold text-dark-900"><img className="w-[150px] sm:w-[200px]" src={logo} /></span>
           </div>
           <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-dark-700">
-            <a href="#" className="hover:text-dark-900 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-dark-900 transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-dark-900 transition-colors">Support</a>
+            <a href="#" className="hover:text-dark-900 transition-colors"><b className='text-gray-600'>Support:</b> admin@thecaninenutritionist.com</a>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-primary-400">

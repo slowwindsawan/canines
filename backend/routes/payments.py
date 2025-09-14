@@ -91,16 +91,61 @@ def _record_payment_event(db: Session, user: Optional[models.User], event_type: 
         db.rollback()
 
 
-def _is_admin(user: models.User) -> bool:
-    # Best-effort admin detection: prefer explicit flags if present, otherwise look for role/name
-    if user is None:
+def _is_admin(user: "models.User") -> bool:
+    """
+    Robust admin detection.
+
+    Checks, in order:
+      1. Boolean flags: is_admin, is_superuser, is_staff
+      2. Role-like columns: role, user_role
+         - supports Enum members (.value or .name) or raw strings
+         - decodes bytes if needed
+      3. Normalizes and compares against a small set of admin labels
+    """
+    if not user:
         return False
-    if getattr(user, "is_admin", False):
-        return True
+
+    # 1) boolean flags
+    for flag in ("is_admin", "is_superuser", "is_staff"):
+        try:
+            if getattr(user, flag, False):
+                return True
+        except Exception:
+            # defensive: getattr may raise in some edge cases
+            pass
+
+    # 2) role-like fields
     role = getattr(user, "role", None) or getattr(user, "user_role", None)
-    if isinstance(role, str) and role.lower() == "admin":
-        return True
-    return False
+    if role is None:
+        return False
+
+    # If Enum-like, prefer .value then .name, otherwise use the object itself
+    val = None
+    try:
+        if hasattr(role, "value"):
+            val = role.value
+        elif hasattr(role, "name"):
+            val = role.name
+        else:
+            val = role
+    except Exception:
+        val = role
+
+    # If bytes, decode
+    if isinstance(val, (bytes, bytearray)):
+        try:
+            val = val.decode("utf-8")
+        except Exception:
+            pass
+
+    # Normalize to string and compare against admin labels
+    try:
+        sval = str(val).strip().lower()
+    except Exception:
+        return False
+
+    admin_labels = {"admin", "administrator", "superuser", "super-admin", "super_admin"}
+    return sval in admin_labels
 
 
 def _attach_user_to_session(db: Session, user: models.User) -> Optional[models.User]:
@@ -595,7 +640,7 @@ def create_checkout_session(
 
     try:
         session = stripe.checkout.Session.create(
-            customer=current_user.stripe_customer_id,
+            customer=current_user.stripe_customer_id or current_user.email,
             payment_method_types=["card"],
             mode=mode,
             line_items=line_items,

@@ -1,4 +1,4 @@
-# app/routers/admin.py  (update)
+# app/routers/admin.py
 from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, UploadFile, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
@@ -8,7 +8,7 @@ from sqlalchemy import or_, func, desc
 from app import models
 from app.schemas import *
 from app.config import SessionLocal
-from app.dependecies import get_current_user
+from app.dependecies import get_current_user, get_db as project_get_db  # keep existing get_current_user
 from pydantic import BaseModel, constr
 import re, os, boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -19,18 +19,58 @@ from dotenv import load_dotenv
 # Load .env from parent directory
 load_dotenv()
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
-# Dependency
+# --------------------- Utilities ---------------------
+
 def get_db():
+    """Local DB dependency (keeps your original pattern)."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
+def _is_admin_user(user: models.User) -> bool:
+    """
+    Robust check whether `user` is admin.
+    Handles SQLAlchemy Enum objects, Python Enums, or raw strings.
+    """
+    if user is None:
+        return False
+    role = getattr(user, "role", None)
+    if role is None:
+        # fallback to boolean flags if present
+        if getattr(user, "is_admin", False) or getattr(user, "is_superuser", False):
+            return True
+        return False
+
+    # If role is a Python Enum (with .value), try to get .value
+    try:
+        val = getattr(role, "value", role)
+    except Exception:
+        val = role
+
+    # finally compare as lowercase string
+    try:
+        return str(val).lower() == "admin"
+    except Exception:
+        return False
+
+def require_admin(current_user: models.User = Depends(get_current_user)):
+    """
+    Dependency that raises 403 unless the current_user is admin.
+    Use this in router-level dependencies so all endpoints require admin.
+    """
+    if not _is_admin_user(current_user):
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return current_user
+
+# --------------------- Router (admin-only) ---------------------
+# The require_admin dependency ensures all routes below require admin.
+router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(require_admin)])
+
 # ---------- Articles CRUD ----------
 @router.post("/articles", response_model=ArticleOut)
-def create_article(payload: ArticleCreate, db: Session = Depends(get_db)):
+def create_article(payload: ArticleCreate, db: Session = Depends(get_db), current_admin: models.User = Depends(get_current_user)):
     article = models.Article(**payload.dict())
     db.add(article)
     db.commit()
@@ -149,8 +189,13 @@ def update_settings(payload: dict, db: Session = Depends(get_db), current_admin:
 
     # Update only provided fields
     if "brand_settings" in payload:
+        # ensure dict exists
+        if settings.brand_settings is None:
+            settings.brand_settings = {}
         settings.brand_settings.update(payload["brand_settings"])
     if "preferences" in payload:
+        if settings.preferences is None:
+            settings.preferences = {}
         settings.preferences.update(payload["preferences"])
     if "activities" in payload:
         settings.activities = payload["activities"]
@@ -183,7 +228,7 @@ def update_tip(
     current_admin: models.User = Depends(get_current_user),
 ):
     """
-    Update the admin 'tip' text. Requires an authenticated user (current_admin).
+    Update the admin 'tip' text. Requires an authenticated admin user (enforced by router-level dependency).
     Sets `admin_id` to the current user to track who updated it.
     """
     settings = db.query(models.AdminSettings).first()
@@ -277,11 +322,12 @@ def _build_public_url_for_key(key: str) -> str:
 @router.post("/save-settings")
 async def save_settings(
     request: Request,
-    current_user: "models.User" = Depends(get_current_user),
+    current_admin: "models.User" = Depends(get_current_user),
 ):
     """
     Save theme settings as styles.css in R2 and optionally save a logo image.
     Accepts application/json OR multipart/form-data (with optional file field 'logo').
+    This endpoint requires admin access (router-level dependency).
     """
 
     def _get_value(source: Any, *keys):
@@ -372,7 +418,7 @@ async def save_settings(
     try:
         client = get_r2_client()
         css_key = "styles.css"
-        put_resp = client.put_object(Bucket=bucket, Key=css_key, Body=css_content, ContentType="text/css")
+        put_resp = client.put_object(Bucket=bucket, Key=css_key, Body=css_content, ContentType="text/css", CacheControl="no-cache, no-store, max-age=0, must-revalidate")
         print("styles.css put_object response:", put_resp)
         css_url = _build_public_url_for_key(css_key)
     except (BotoCoreError, ClientError) as be:

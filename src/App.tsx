@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -22,8 +22,6 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Intake from "./pages/Intake";
-import Protocol from "./pages/Protocol";
-import Tracker from "./pages/Tracker";
 import Tiers from "./pages/Tiers";
 import Education from "./pages/Education";
 import Account from "./pages/Account";
@@ -59,6 +57,27 @@ const UserLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 const App: React.FC = () => {
+  useEffect(() => {
+    async function loadRemoteCSS() {
+      try {
+        const res = await fetch(
+          "https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/styles.css", { cache: 'no-store' }
+        );
+        if (!res.ok) throw new Error("Failed to fetch CSS");
+
+        const cssText = await res.text();
+
+        const styleTag = document.createElement("style");
+        styleTag.innerHTML = cssText;
+        document.head.appendChild(styleTag);
+        console.log("External CSS injected!", styleTag);
+      } catch (err) {
+        console.error("Error loading CSS:", err);
+      }
+    }
+
+    loadRemoteCSS();
+  }, []);
   return (
     <AuthProvider>
       <AdminProvider>

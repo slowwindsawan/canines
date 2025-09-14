@@ -55,7 +55,7 @@ const PLANS = [
 ];
 
 export default function PlansComparison({position="bottom"}) {
-  const togglePosition = position === "bottom" ? "top" : "bottom";
+  const togglePosition = position == "bottom" ? "top" : "bottom";
   const { user } = useAuth();
   const u = (user || {}) as User;
 

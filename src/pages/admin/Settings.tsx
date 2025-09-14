@@ -34,21 +34,176 @@ const Settings: React.FC = () => {
     isLoading,
   } = useAdmin();
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [initial, setInitial] = useState({});
+
+  // initial can be used to hydrate from DB
+  const [brandingForm, setBrandingForm] = useState({
+    siteName: initial.siteName || "",
+    logoUrl: initial.logoUrl || "",
+    // optional file if user uploads a new logo
+    logoFile: null,
+    logoPreview:
+      initial.logoUrl ||
+      "https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png",
+    // original fields you had
+    primaryColor: initial.primaryColor || "#10b981",
+    secondaryColor: initial.secondaryColor || "#14b8a6",
+    // brand-specific colors you asked to change
+    brandOffwhite: initial.brandOffwhite || "#f0f0ec",
+    brandCharcoal: initial.brandCharcoal || "#373737",
+    brandMidgrey: initial.brandMidgrey || "#5A5A5A",
+    // infos
+    tagline: initial.tagline || "",
+    supportEmail: initial.supportEmail || "",
+    footerText: initial.footerText || "",
+  });
+
+  // Keep CSS variables on :root in sync so your CSS can reference them:
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--bg-brand-offwhite", brandingForm.brandOffwhite);
+    root.style.setProperty("--bg-brand-charcoal", brandingForm.brandCharcoal);
+    root.style.setProperty("--bg-brand-midgrey", brandingForm.brandMidgrey);
+    root.style.setProperty("--text-brand-offwhite", brandingForm.brandOffwhite);
+    root.style.setProperty("--text-brand-charcoal", brandingForm.brandCharcoal);
+    root.style.setProperty("--text-brand-midgrey", brandingForm.brandMidgrey);
+
+    // cleanup not strictly necessary for simple values, but safe:
+    return () => {
+      // (no-op)
+    };
+  }, [
+    brandingForm.brandOffwhite,
+    brandingForm.brandCharcoal,
+    brandingForm.brandMidgrey,
+  ]);
+
+  // Logo file handler (preview + store file in state)
+  const handleLogoChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    // Revoke previous preview if any to avoid leaks:
+    if (
+      brandingForm.logoPreview &&
+      brandingForm.logoPreview.startsWith("blob:")
+    ) {
+      try {
+        URL.revokeObjectURL(brandingForm.logoPreview);
+      } catch (_) {}
+    }
+
+    setBrandingForm((prev) => ({
+      ...prev,
+      logoFile: file,
+      logoPreview: url,
+      logoUrl: "", // clear explicit URL when file chosen
+    }));
+  };
+
+  const handleRemoveLogo = () => {
+    if (
+      brandingForm.logoPreview &&
+      brandingForm.logoPreview.startsWith("blob:")
+    ) {
+      try {
+        URL.revokeObjectURL(brandingForm.logoPreview);
+      } catch (_) {}
+    }
+    setBrandingForm((prev) => ({
+      ...prev,
+      logoFile: null,
+      logoPreview: "",
+      logoUrl: "",
+    }));
+  };
+
+  const onSave = () => alert("Settings saved.");
+
+  const handleBrandingSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Map values that the backend expects (backend endpoint expects bg_offwhite / text_offwhite etc.)
+      const mapped = {
+        siteName: brandingForm.siteName || "",
+        primaryColor: brandingForm.primaryColor || "",
+        secondaryColor: brandingForm.secondaryColor || "",
+        // CSS colors - backend expects bg_/text_ keys
+        bg_offwhite: brandingForm.brandOffwhite || "",
+        bg_charcoal: brandingForm.brandCharcoal || "",
+        bg_midgrey: brandingForm.brandMidgrey || "",
+        text_offwhite: brandingForm.brandOffwhite || "",
+        text_charcoal: brandingForm.brandCharcoal || "",
+        text_midgrey: brandingForm.brandMidgrey || "",
+        tagline: brandingForm.tagline || "",
+        supportEmail: brandingForm.supportEmail || "",
+        footerText: brandingForm.footerText || "",
+      };
+
+      let response = null;
+
+      if (brandingForm.logoFile) {
+        // Use FormData because we have a file
+        const fd = new FormData();
+        // Append mapped fields
+        Object.entries(mapped).forEach(([k, v]) => fd.append(k, v));
+        // Append the file under the key the backend expects ("logo")
+        fd.append("logo", brandingForm.logoFile);
+
+        // jwtRequest(endpoint, method, body, isFormData)
+        response = await jwtRequest("/admin/save-settings", "POST", fd, true);
+      } else {
+        // No file: send JSON payload
+        response = await jwtRequest(
+          "/admin/save-settings",
+          "POST",
+          mapped,
+          false
+        );
+      }
+
+      // response expected: { success: true, css_url: "...", logo_url?: "..." }
+      if (response && response.success) {
+        // update local state with the returned urls so UI can preview/update
+        setBrandingForm((prev) => ({
+          ...prev,
+          logoUrl: response.logo_url || prev.logoUrl,
+          cssUrl: response.css_url || prev.cssUrl,
+        }));
+
+        // If parent provided an onSave hook, call it with the payload + returned urls
+        if (onSave) {
+          const out = {
+            ...mapped,
+            logoUrl: response.logo_url || brandingForm.logoUrl,
+            cssUrl: response.css_url || brandingForm.cssUrl,
+          };
+          await onSave(out);
+        }
+
+        // optionally show a toast / notification here
+      } else {
+        // Backend returned success: false or unexpected -> surface an error
+        console.error("Unexpected response", response);
+        throw new Error("Save failed");
+      }
+    } catch (err) {
+      console.error("save branding error", err);
+      // show user-friendly error (toast or set an error state)
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<"branding" | "tones" | "feedback">(
     "branding"
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
-
-  // Site Settings Form State
-  const [brandingForm, setBrandingForm] = useState({
-    siteName: siteSettings.siteName,
-    logoUrl: siteSettings.logoUrl,
-    primaryColor: siteSettings.primaryColor,
-    secondaryColor: siteSettings.secondaryColor,
-    accentColor: siteSettings.accentColor,
-  });
 
   const [tonePresets, setTonePresets] = useState(siteSettings.tonePresets);
   const [defaultTone, setDefaultTone] = useState(siteSettings.defaultTone);
@@ -62,17 +217,6 @@ const Settings: React.FC = () => {
     // { id: "feedback", name: "Feedback Management", icon: MessageCircle },
     { id: "form-builder", name: "Onboard Form Settings", icon: NotepadText },
   ];
-
-  const handleBrandingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    updateSiteSettings(brandingForm);
-    setIsSubmitting(false);
-  };
 
   const handleToneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,125 +418,205 @@ const Settings: React.FC = () => {
               <div className="lg:col-span-3">
                 {/* Branding Tab */}
                 {activeTab === "branding" && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center space-x-2 mb-6">
-                      <Palette className="h-6 w-6 text-emerald-600" />
-                      <h2 className="text-xl font-bold text-gray-900">
-                        Branding Settings
-                      </h2>
+                  <>
+                    {" "}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center space-x-2 mb-6">
+                        <Palette className="h-6 w-6 text-emerald-600" />
+                        <h2 className="text-xl font-bold text-gray-900">
+                          Branding Settings
+                        </h2>
+                      </div>
+
+                      <form
+                        onSubmit={handleBrandingSubmit}
+                        className="space-y-6"
+                      >
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium text-gray-700 mb-2">
+                            Upload Logo
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLogoChange}
+                            className="block w-full text-sm text-gray-500 file:border-0"
+                          />
+                          <div className="mt-3">
+                            {brandingForm.logoPreview ? (
+                              <div className="flex items-center space-x-3">
+                                <img
+                                  src={brandingForm.logoPreview}
+                                  alt="logo"
+                                  className="h-32 w-32 object-contain border rounded"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveLogo}
+                                  className="text-sm text-red-600 underline"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-12 w-32 border rounded text-gray-400 text-sm">
+                                No Image
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Brand colors the user provided */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Brand — Offwhite (background)
+                          </label>
+                          <div className="flex space-x-2 items-center">
+                            <input
+                              type="color"
+                              value={brandingForm.brandOffwhite}
+                              onChange={(e) =>
+                                setBrandingForm((prev) => ({
+                                  ...prev,
+                                  brandOffwhite: e.target.value,
+                                }))
+                              }
+                              className="w-16 h-12 border border-gray-300 rounded-lg"
+                            />
+                            <input
+                              type="text"
+                              value={brandingForm.brandOffwhite}
+                              onChange={(e) =>
+                                setBrandingForm((prev) => ({
+                                  ...prev,
+                                  brandOffwhite: e.target.value,
+                                }))
+                              }
+                              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Brand — Charcoal
+                          </label>
+                          <div className="flex space-x-2 items-center">
+                            <input
+                              type="color"
+                              value={brandingForm.brandCharcoal}
+                              onChange={(e) =>
+                                setBrandingForm((prev) => ({
+                                  ...prev,
+                                  brandCharcoal: e.target.value,
+                                }))
+                              }
+                              className="w-16 h-12 border border-gray-300 rounded-lg"
+                            />
+                            <input
+                              type="text"
+                              value={brandingForm.brandCharcoal}
+                              onChange={(e) =>
+                                setBrandingForm((prev) => ({
+                                  ...prev,
+                                  brandCharcoal: e.target.value,
+                                }))
+                              }
+                              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Brand — Mid Grey
+                          </label>
+                          <div className="flex space-x-2 items-center">
+                            <input
+                              type="color"
+                              value={brandingForm.brandMidgrey}
+                              onChange={(e) =>
+                                setBrandingForm((prev) => ({
+                                  ...prev,
+                                  brandMidgrey: e.target.value,
+                                }))
+                              }
+                              className="w-16 h-12 border border-gray-300 rounded-lg"
+                            />
+                            <input
+                              type="text"
+                              value={brandingForm.brandMidgrey}
+                              onChange={(e) =>
+                                setBrandingForm((prev) => ({
+                                  ...prev,
+                                  brandMidgrey: e.target.value,
+                                }))
+                              }
+                              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Live preview row */}
+                        <div className="border rounded p-4">
+                          <div className="grid grid-cols-3 gap-4">
+                            <div
+                              className="p-4 rounded shadow-sm"
+                              style={{ background: brandingForm.brandOffwhite }}
+                            >
+                              <div className="text-sm font-medium">
+                                Offwhite (bg)
+                              </div>
+                              <div className="mt-2 text-xs">
+                                {brandingForm.brandOffwhite}
+                              </div>
+                            </div>
+                            <div
+                              className="p-4 rounded shadow-sm"
+                              style={{
+                                background: brandingForm.brandCharcoal,
+                                color: "#fff",
+                              }}
+                            >
+                              <div className="text-sm font-medium">
+                                Charcoal
+                              </div>
+                              <div className="mt-2 text-xs">
+                                {brandingForm.brandCharcoal}
+                              </div>
+                            </div>
+                            <div
+                              className="p-4 rounded shadow-sm"
+                              style={{
+                                background: brandingForm.brandMidgrey,
+                                color: "#fff",
+                              }}
+                            >
+                              <div className="text-sm font-medium">
+                                Mid Grey
+                              </div>
+                              <div className="mt-2 text-xs">
+                                {brandingForm.brandMidgrey}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2"
+                          >
+                            <Save className="h-4 w-4" />
+                            <span>
+                              {isSubmitting ? "Saving..." : "Save Changes"}
+                            </span>
+                          </button>
+                        </div>
+                      </form>
                     </div>
-
-                    <form onSubmit={handleBrandingSubmit} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Site Name
-                          </label>
-                          <input
-                            type="text"
-                            value={brandingForm.siteName}
-                            onChange={(e) =>
-                              setBrandingForm((prev) => ({
-                                ...prev,
-                                siteName: e.target.value,
-                              }))
-                            }
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Logo URL
-                          </label>
-                          <input
-                            type="text"
-                            value={brandingForm.logoUrl}
-                            onChange={(e) =>
-                              setBrandingForm((prev) => ({
-                                ...prev,
-                                logoUrl: e.target.value,
-                              }))
-                            }
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Primary Color
-                          </label>
-                          <div className="flex space-x-2">
-                            <input
-                              type="color"
-                              value={brandingForm.primaryColor}
-                              onChange={(e) =>
-                                setBrandingForm((prev) => ({
-                                  ...prev,
-                                  primaryColor: e.target.value,
-                                }))
-                              }
-                              className="w-16 h-12 border border-gray-300 rounded-lg"
-                            />
-                            <input
-                              type="text"
-                              value={brandingForm.primaryColor}
-                              onChange={(e) =>
-                                setBrandingForm((prev) => ({
-                                  ...prev,
-                                  primaryColor: e.target.value,
-                                }))
-                              }
-                              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Secondary Color
-                          </label>
-                          <div className="flex space-x-2">
-                            <input
-                              type="color"
-                              value={brandingForm.secondaryColor}
-                              onChange={(e) =>
-                                setBrandingForm((prev) => ({
-                                  ...prev,
-                                  secondaryColor: e.target.value,
-                                }))
-                              }
-                              className="w-16 h-12 border border-gray-300 rounded-lg"
-                            />
-                            <input
-                              type="text"
-                              value={brandingForm.secondaryColor}
-                              onChange={(e) =>
-                                setBrandingForm((prev) => ({
-                                  ...prev,
-                                  secondaryColor: e.target.value,
-                                }))
-                              }
-                              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-2"
-                        >
-                          <Save className="h-4 w-4" />
-                          <span>
-                            {isSubmitting ? "Saving..." : "Save Changes"}
-                          </span>
-                        </button>
-                      </div>
-                    </form>
-                  </div>
+                  </>
                 )}
 
                 {activeTab === "form-builder" &&

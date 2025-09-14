@@ -105,13 +105,13 @@ const AdminDashboard: React.FC = () => {
       color: "bg-red-50 text-red-600",
       href: "/admin/submissions?priority=urgent",
     },
-    {
-      title: "Notifications",
-      value: unreadNotifications,
-      icon: Bell,
-      color: "bg-purple-50 text-purple-600",
-      href: "/admin/notifications",
-    },
+    // {
+    //   title: "Notifications",
+    //   value: unreadNotifications,
+    //   icon: Bell,
+    //   color: "bg-purple-50 text-purple-600",
+    //   href: "/admin/notifications",
+    // },
   ];
 
   const quickActions = [

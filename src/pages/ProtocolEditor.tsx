@@ -151,7 +151,7 @@ function normalizeProtocol(raw: any): ProtocolJSON {
   if (raw && typeof raw === "object") {
     for (const key of Object.keys(raw)) {
       // skip known / aliased keys
-      if (protectedMap[key]) continue;
+      if (key!=="custom_sections") continue;
       raw[key].forEach((value) => {
         if (Array.isArray(value)) {
           // Treat as a custom section (array of items)

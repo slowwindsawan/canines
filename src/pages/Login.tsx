@@ -2,7 +2,7 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { publicRequest } from "../env"; // use publicRequest for login
 import logo from "../components/logo.png";
 import dog1 from "../assets/Romeo-Badman-7.png";
@@ -15,7 +15,6 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login: React.FC = () => {
-  const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = React.useState<string>("");
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
@@ -41,7 +40,7 @@ const Login: React.FC = () => {
       if (result.user) localStorage.setItem("user_data", JSON.stringify(result.user));
 
       // Navigate to the original page or dashboard
-      navigate(from, { replace: true });
+      window.location.href="/dashboard";
     } catch (err: any) {
       console.error("Login error:", err);
       setError(err.response.data?.detail || "Invalid email or password");
@@ -75,10 +74,6 @@ const Login: React.FC = () => {
         <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8" style={{ fontFamily: "sans-serif" }}>
           <form className="space-y-6" onSubmit={onSubmit}>
             {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
-
-            <div className="bg-primary-200 border border-primary-400 text-dark-800 px-4 py-3 rounded-lg text-xs sm:text-sm">
-              <strong>Demo credentials:</strong> demo@example.com / demo123
-            </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-dark-800 mb-2">Email Address</label>

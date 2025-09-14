@@ -31,14 +31,14 @@ export default {
           700: '#434343',
           800: '#383838',
           900: '#373737',
-        },
-        brand: {
-          offwhite: '#f0f0ec',
-          charcoal: '#373737',
-          midgrey: '#5A5A5A',
         }
       }
     },
   },
   plugins: [],
 };
+        // brand: {
+        //   offwhite: '#f0f0ec',
+        //   charcoal: '#373737',
+        //   midgrey: '#5A5A5A',
+        // }

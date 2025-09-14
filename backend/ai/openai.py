@@ -30,11 +30,15 @@ Only return a JSON response in the following structure:
         {"title": "Dinner", "description": "..."}
     ],
     "what_to_do_goals": [
+    // Generate a structured plan with DAILY goals for each day 
+    // until the estimated_time period is over (e.g., 7 days, 14 days).
+    // Each entry should include a "day" field to indicate which day it belongs to.
         {
             "title": "...",
             "description": "...",
             "priority": "...",
             "due_date": "...",
+            "category": "stool_quality/energy_level/overall_health",
             "completed": false,
             "id": <add unique number here>,
             "achievement_badges": [
@@ -70,7 +74,7 @@ Only return a JSON response in the following structure:
         }, ...
     ],
     "next_steps": [
-        "title":"..."
+        {"id": <add unique number here>, "title":"..."}
     ],
     "confidence": <0 - 100>,
     "priority": "<low, medium, high, urgent>",
@@ -187,7 +191,10 @@ Return only a JSON object with the following structure:
     "health_score": <0-100>,
     "key_observations": ["...", "..."],
     "recommendations": ["...", "..."],
-    "confidence": <0-100>
+    "confidence": <0-100>,
+    "stool_quality":"<critical/improving/stable>",
+    "energy_level": "<low/moderate/high>",
+    "overall_health": "<critical/improving/stable>"
 }
 Do not include any explanations outside this JSON and nothing before first '{'.
 """
@@ -225,3 +232,66 @@ Do not include any explanations outside this JSON and nothing before first '{'.
         }
 
     return result
+
+# Example usage
+if __name__ == "__main__":
+    system = """
+You are an expert veterinarian. 
+Based on the dog's description form provided, medical standards, and scientific knowledge, provide accurate information to diagnose and guide the dog's health. Today's date is """ + datetime.now().strftime("%Y-%m-%d") + """.
+Only return a JSON response in the following structure:
+
+{
+    "daily_meal_plan": [
+        {"title": "Breakfast", "description": "..."},
+        {"title": "Lunch", "description": "..."},
+        {"title": "Dinner", "description": "..."}
+    ],
+    "what_to_do_goals": [
+        {
+            "title": "...",
+            "description": "...",
+            "priority": "...",
+            "due_date": "...",
+            "completed": false,
+            "id": <add unique number here>,
+            "achievement_badges": [
+                {"title": "...", "description": "..."}
+            ]
+        }
+    ]
+}
+
+Do not include any explanations outside this JSON and nothing before first '{'.
+"""
+
+    user = """
+    Field: Dog's Name
+User value: haskldfhklj
+---
+Field: Breed
+User value: hklhaskldhf
+---
+Field: Age (years)
+User value: 2
+---
+Field: Weight (kg)
+User value: 22
+---
+Field: Stool Type
+User value: normal
+---
+Field: Symptoms
+User value: ['diarrhea']
+---
+Field: Behavior Notes
+User value: bkhkhkj
+---
+Field: Color
+User value: black
+Description: Color of the dog.
+---"""
+    try:
+        reply = call_gpt_chat(user, "protocol")
+        print("Assistant:", reply)
+    except Exception as e:
+        print("Error:", e)
