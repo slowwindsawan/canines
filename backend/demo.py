@@ -1,49 +1,59 @@
-# reset_stripe_ids.py
-import sys
-from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+# import boto3
+# import os
+# from dotenv import load_dotenv
 
-# ✅ Import your User model & Base
-from app import models
-from db.database import Base  # adjust to where your Base is defined
+# # Load .env
+# load_dotenv()
+
+# AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+# AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+# AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
+
+# print(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+
+# # Create SES client
+# ses = boto3.client(
+#     "ses",
+#     aws_access_key_id=AWS_ACCESS_KEY_ID,
+#     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+#     region_name=AWS_REGION,
+# )
+
+# # Send mail
+# response = ses.send_email(
+#     Source="admin@thecaninenutritionist.com",  # domain must be verified in SES
+#     Destination={"ToAddresses": ["abhisek85400@gmail.com"]},
+#     Message={
+#         "Subject": {"Data": "Hello from SES"},
+#         "Body": {"Text": {"Data": "This is a test email sent via SES + boto3."}},
+#     },
+# )
+
+# print("Email sent! Message ID:", response["MessageId"])
+
+import boto3
 import os
 from dotenv import load_dotenv
 
-# Load .env from parent directory
+# Load .env
 load_dotenv()
 
-# ---------- CONFIG ----------
-DATABASE_URL = os.getenv("DATABASE_URL")
-# ----------------------------
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-2")
 
-def reset_stripe_ids(email: str):
-    engine = create_engine(DATABASE_URL)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Create SES client
+ses = boto3.client(
+    "ses",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION,
+)
 
-    db: Session = SessionLocal()
-    try:
-        user = db.query(models.User).filter(models.User.email == email).first()
-        if not user:
-            print(f"❌ No user found with email {email}")
-            return
-
-        print(f"✅ Found user {user.id} ({user.email}), resetting Stripe fields...")
-
-        user.stripe_customer_id = None
-        user.stripe_subscription_id = None
-        db.add(user)
-        db.commit()
-
-        print("✔️ Stripe IDs reset successfully.")
-    except Exception as e:
-        print("❌ Error:", str(e))
-        db.rollback()
-    finally:
-        db.close()
-
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python reset_stripe_ids.py user@example.com")
-    else:
-        reset_stripe_ids(sys.argv[1])
+try:
+    # Check sending quota (does not send any email)
+    quota = ses.get_send_quota()
+    print("Credentials are valid!")
+    print("Max sendable emails:", quota)
+except Exception as e:
+    print("Credentials invalid or issue:", e)
