@@ -56,6 +56,6 @@ def read_users_me(current_user: models.User = Depends(get_current_user), db: Ses
         "user_type": current_user.role
     }
 
-if __name__ == "__main__":
-    print("Starting the FastAPI server....")
-    uvicorn.run("main:app", host="localhost", port=8000, reload=True)
+# if __name__ == "__main__":
+#     print("Starting the FastAPI server....")
+#     uvicorn.run("main:app", host="localhost", port=8000, reload=True)
