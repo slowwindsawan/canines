@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     STRIPE_PLAN_AMOUNT_FOUNDATION: int = 2900        # $29.00
     STRIPE_PLAN_AMOUNT_THERAPEUTIC: int = 6900      # $69.00
     STRIPE_PLAN_AMOUNT_COMPREHENSIVE: int = 14900   # $149.00
-    STRIPE_SUCCESS_URL: str = "http://localhost:5173/dashboard"
-    STRIPE_CANCEL_URL: str = "hhttp://localhost:5173/dashboard"
+    STRIPE_SUCCESS_URL: str = "https://app.thecaninenutritionist.com/login/dashboard"
+    STRIPE_CANCEL_URL: str = "https://app.thecaninenutritionist.com/login/dashboard"
 
     # Optional: canonical Stripe Price IDs (recommended for exact mapping)
     STRIPE_PRICE_ID_FOUNDATION: Optional[str] = None
@@ -326,7 +326,7 @@ def create_checkout_session(
     Create a Stripe Checkout session OR perform an in-place subscription swap.
     ...
     """
-    dashboard_url = "http://localhost:5173/dashboard"
+    dashboard_url = "https://app.thecaninenutritionist.com/dashboard"
 
     # ensure customer exists (create if missing and Stripe is available)
     if not current_user.stripe_customer_id and stripe_available:

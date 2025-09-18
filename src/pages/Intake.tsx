@@ -12,9 +12,12 @@ import PlansComparison from "../components/PlansComparision";
  * This component works with dynamic form fields returned from the server,
  * and guarantees presence of a set of required fields before submit.
  *
- * Added: a standalone optional photo upload UI. It uploads immediately when
- * the user picks a file using `jwtRequest('/dogs/image', 'POST', formData)`.
- * The image is NOT considered part of `formFields` and does not require form submit.
+ * Changes made here per request:
+ * - Removed min/max for `age` and `weight` fields in templates
+ * - Added a weight unit toggle (kg / lb). Default is kg
+ * - The stored canonical weight value inside `formFields` is always in kilograms
+ * - When user switches/edits units the UI shows the converted value and we save
+ *   the canonical kg value. On submit both kg and lb are included in payload.
  */
 
 type DynamicField = {
@@ -58,18 +61,16 @@ const requiredFieldTemplates: DynamicField[] = [
     required: true,
     placeholder: "e.g. 3",
     value: "",
-    min: 0,
-    max: 25,
+    // min/max removed as requested
   },
   {
     name: "weight",
-    label: "Weight (kg)",
+    label: "Weight",
     type: "number",
     required: true,
     placeholder: "e.g. 12.5",
-    value: "",
-    min: 0,
-    max: 300,
+    value: "", // canonical: stored as KG number
+    // min/max removed as requested
   },
   {
     name: "stoolType",
@@ -103,14 +104,18 @@ const requiredFieldTemplates: DynamicField[] = [
   },
   {
     name: "behaviorNotes",
-    label: "Behavior Notes",
+    label: "Behavior",
     type: "textarea",
-    required: true,
+    required: false,
     placeholder: "Anything we should know about behaviour (up to 500 chars)",
     value: "",
     maxLength: 500,
   },
+  // optional: server can provide a weightUnit field. default handled in component state
 ];
+
+const kgToLbs = (kg: number) => Math.round(kg * 2.2046226218 * 100) / 100;
+const lbsToKg = (lb: number) => Math.round((lb / 2.2046226218) * 100) / 100;
 
 const Intake: React.FC = () => {
   const navigate = useNavigate();
@@ -127,6 +132,9 @@ const Intake: React.FC = () => {
   // --- New image-related state (standalone, optional) ---
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Weight unit state. Default kg. If server provides a `weightUnit` field we'll respect it.
+  const [weightUnit, setWeightUnit] = useState<"kg" | "lb">("kg");
 
   useEffect(() => {
     setId(searchParams.get("id"));
@@ -174,7 +182,6 @@ const Intake: React.FC = () => {
       const serverField = serverByName.get(req.name);
       if (serverField) {
         // Merge server-provided field into the required template.
-        // Server can override label/description/options/value etc.
         const combined: DynamicField = { ...req, ...serverField };
         // Ensure sensible defaults for value when missing
         if (combined.value === undefined) combined.value = req.value;
@@ -212,25 +219,17 @@ const Intake: React.FC = () => {
     try {
       const data = await jwtRequest("/dogs/get/" + id, "POST");
       if (data?.success) {
-        // get server-provided fields (if any) and merge with required templates
         const serverFields =
           data?.dog?.form_data?.fullFormFields &&
           Array.isArray(data.dog.form_data.fullFormFields)
             ? data.dog.form_data.fullFormFields
             : [];
 
-        // Merge server fields into our required templates so required fields are always present
         const merged = mergeWithRequiredFields(serverFields);
 
-        // Additionally, if there are existing formFields (from onboarding fetch),
-        // preserve any non-required fields that were fetched earlier but missing in serverFields.
-        // This keeps the latest structure while prioritizing server prefill.
-        // (If formFields is empty, merged already contains required templates.)
         if (formFields.length > 0) {
-          // Build a map for existing non-required fields by name
           const existingByName = new Map<string, DynamicField>();
           formFields.forEach((f) => existingByName.set(f.name, f));
-          // Append any fields that exist in existing formFields but are not present in merged
           const mergedNames = new Set(merged.map((m) => m.name));
           existingByName.forEach((f, name) => {
             if (!mergedNames.has(name)) {
@@ -241,15 +240,16 @@ const Intake: React.FC = () => {
 
         setFormFields(merged);
 
-        // --- If server provided an image URL, use it as initial preview ---
+        // Set initial weight unit from server if provided
+        const serverUnitField = merged.find((f) => f.name === "weightUnit");
+        if (serverUnitField && (serverUnitField.value === "lb" || serverUnitField.value === "kg")) {
+          setWeightUnit(serverUnitField.value === "lb" ? "lb" : "kg");
+        }
+
         const imageUrl =
-          data?.dog?.image_url ||
-          data?.dog?.photoUrl ||
-          data?.dog?.image ||
-          null;
+          data?.dog?.image_url || data?.dog?.photoUrl || data?.dog?.image || null;
         if (imageUrl) setImagePreview(String(imageUrl));
       } else {
-        // no success: leave whatever formFields currently are (or templates)
         console.warn(
           "Dog fetch returned success=false, leaving current form fields."
         );
@@ -273,6 +273,12 @@ const Intake: React.FC = () => {
           merged = requiredFieldTemplates.map((t) => ({ ...t }));
         }
         setFormFields(merged);
+
+        // set weightUnit from server if present in merged
+        const unitField = merged.find((f) => f.name === "weightUnit");
+        if (unitField && (unitField.value === "lb" || unitField.value === "kg")) {
+          setWeightUnit(unitField.value === "lb" ? "lb" : "kg");
+        }
 
         // 👉 Only fetch dog after form structure is ready
         if (id) {
@@ -322,13 +328,14 @@ const Intake: React.FC = () => {
 
     try {
       setIsSubmitting(true);
-      // Build payload from formFields
+      const weightKg = Number(getFieldValueByName("weight") || 0);
+      const weightLbs = kgToLbs(Number(weightKg || 0));
+
       const payload = {
         name: formFields.find((f) => f.name === "name")?.value || "Unknown",
         breed: formFields.find((f) => f.name === "breed")?.value || "Unknown",
-        weight_kg:
-          Number(formFields.find((f) => f.name === "weight")?.value) ||
-          undefined,
+        weight_kg: weightKg || undefined,
+        weight_lbs: weightLbs || undefined,
         notes:
           formFields.find((f) => f.name === "behaviorNotes")?.value ||
           undefined,
@@ -343,13 +350,11 @@ const Intake: React.FC = () => {
         },
       };
 
-      // Call your FastAPI PUT endpoint
       const response = await jwtRequest(`/dogs/update/${id}`, "PUT", payload);
 
       if (response?.success) {
         alert("Dog updated successfully!");
-        // Optionally navigate or refresh the data
-        window.location.href="/dashboard"
+        window.location.href = "/dashboard";
       } else {
         alert(response?.message || "Failed to update dog.");
       }
@@ -362,7 +367,6 @@ const Intake: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (hasErrors) {
-      // extra guard
       alert("Please fill all required fields.");
       return;
     }
@@ -370,25 +374,29 @@ const Intake: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // build dog payload using guaranteed fields
+      const weightKg = Number(getFieldValueByName("weight") || 0);
+      const weightLbs = kgToLbs(Number(weightKg || 0));
+
       const dogPayload = {
         name: String(getFieldValueByName("name") || "Unknown"),
         breed: String(getFieldValueByName("breed") || "Unknown"),
         age: Number(getFieldValueByName("age") || 0),
-        weight: Number(getFieldValueByName("weight") || 0),
+        weight: weightKg,
+        weightUnit: weightUnit, // keep track of user's chosen unit
+        weight_lbs: weightLbs,
         stoolType: String(getFieldValueByName("stoolType") || "Unknown"),
         symptoms: getFieldValueByName("symptoms") || [],
         behaviorNotes: String(getFieldValueByName("behaviorNotes") || ""),
         id: id,
       };
 
-      // You can replace this simulated delay with a real API call if needed
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       const apiPayload = {
         name: dogPayload.name,
         breed: dogPayload.breed,
         weight_kg: dogPayload.weight > 0 ? dogPayload.weight : undefined,
+        weight_lbs: dogPayload.weight_lbs > 0 ? dogPayload.weight_lbs : undefined,
         notes: dogPayload.behaviorNotes || undefined,
         id: dogPayload.id,
         form_data: {
@@ -400,17 +408,14 @@ const Intake: React.FC = () => {
         },
       };
 
-      // assume jwtRequest(path, method, body)
       const response = await jwtRequest("/dogs/create-dog", "POST", apiPayload);
       console.warn(response);
 
       if (response && response.success) {
-        // success path
-        window.location.href="/dashboard"
+        window.location.href = "/dashboard";
         return;
       }
 
-      // If backend returned success=false (some helpers do this)
       const serverMsg = response?.message || response?.detail || "";
       if (
         serverMsg.toLowerCase().includes("already exists") ||
@@ -434,29 +439,22 @@ const Intake: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // show local preview immediately
     const reader = new FileReader();
     reader.onload = () => setImagePreview(String(reader.result));
     reader.readAsDataURL(file);
 
-    // upload immediately to backend
     setUploadingImage(true);
     try {
       const formData = new FormData();
-      // include dog id if available so backend knows which dog to attach to
       if (id) formData.append("id", String(id));
       formData.append("image", file);
 
-      // IMPORTANT: jwtRequest must support FormData bodies (do not JSON.stringify)
       const res = await jwtRequest("/dogs/image", "POST", formData, true);
 
       if (res?.success) {
-        // backend may return the stored image URL — update preview if provided
         const url = res?.url || res?.image_url || res?.photoUrl;
         if (url) setImagePreview(String(url));
-        // optionally show a success small toast here
       } else {
-        // upload failed — notify and keep preview (or revert)
         alert(res?.message || "Image upload failed.");
       }
     } catch (err) {
@@ -467,15 +465,78 @@ const Intake: React.FC = () => {
     }
   };
 
-  // allow clearing preview locally; optionally tell backend to remove image if you implement an endpoint
   const handleClearImage = async () => {
-    // If you have a backend delete API you can call it here. As an example:
-    // if (id) await jwtRequest('/dogs/image', 'DELETE', { id });
     setImagePreview(null);
   };
 
   // Render helpers (same as your original logic, adapted to typed state)
   const renderInputForField = (field: DynamicField, idx: number) => {
+    // Special handling for weight field to support kg/lb toggle
+    if (field.name === "weight") {
+      // canonical stored value inside field.value is KG
+      const kgVal =
+        field.value === "" || field.value === null || field.value === undefined
+          ? 0
+          : Number(field.value);
+      const displayVal = weightUnit === "kg" ? kgVal : kgToLbs(kgVal);
+
+      const onChangeWeight = (nextDisplay: number | "") => {
+        // when user edits, nextDisplay is in the currently selected unit
+        if (nextDisplay === "") {
+          updateFieldAtIndex(idx, "");
+          return;
+        }
+        const nextKg = weightUnit === "kg" ? Number(nextDisplay) : lbsToKg(Number(nextDisplay));
+        updateFieldAtIndex(idx, nextKg);
+      };
+
+      return (
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2 items-center">
+            <input
+              type="number"
+              step="any"
+              value={displayVal === 0 ? (field.value === "" ? "" : displayVal) : displayVal}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "") return onChangeWeight("");
+                const n = Number(raw);
+                if (isNaN(n)) return;
+                onChangeWeight(n);
+              }}
+              placeholder={field.placeholder ?? "Enter weight"}
+              className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500`}
+            />
+
+            <div className="relative">
+              <label htmlFor="weight-unit" className="sr-only">Weight unit</label>
+              <select
+                id="weight-unit"
+                value={weightUnit}
+                onChange={(e) => setWeightUnit(e.target.value as "kg" | "lb")}
+                className="w-28 px-3 py-2 rounded-lg border text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="kg">kg</option>
+                <option value="lb">lb</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-600">
+            {weightUnit === "kg" ? (
+              <>
+                ≈ {kgToLbs(Number(kgVal || 0))} lb
+              </>
+            ) : (
+              <>
+                ≈ {lbsToKg(Number(kgVal || 0))} kg
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     const rawValue = field.value;
     const value =
       rawValue === null || rawValue === undefined
@@ -685,7 +746,7 @@ const Intake: React.FC = () => {
             Tell Us About Your Dog
           </h1>
           <p className="text-lg text-gray-600">
-            This information helps us create a personalized health protocol
+            This information helps us create a personalised health protocol
           </p>
         </div>
 
@@ -711,9 +772,7 @@ const Intake: React.FC = () => {
                     className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                   />
                 ) : (
-                  <div className="text-center text-gray-400 text-sm px-2">
-                    No photo
-                  </div>
+                  <div className="text-center text-gray-400 text-sm px-2">No photo</div>
                 )}
               </div>
 
@@ -743,9 +802,7 @@ const Intake: React.FC = () => {
                   </button>
 
                   <div className="text-gray-500 text-sm flex-1 text-center sm:text-left">
-                    {uploadingImage
-                      ? "Uploading…"
-                      : "Changes upload automatically"}
+                    {uploadingImage ? "Uploading…" : "Changes upload automatically"}
                   </div>
                 </div>
               </div>
@@ -756,11 +813,11 @@ const Intake: React.FC = () => {
             <>
               <form
                 onSubmit={(e) => {
-                  e.preventDefault(); // prevent default form submission
+                  e.preventDefault();
                   if (id) {
-                    handleUpdateDog(); // update existing dog
+                    handleUpdateDog();
                   } else {
-                    handleSubmit(e); // create new dog
+                    handleSubmit(e);
                   }
                 }}
                 className="space-y-8"
@@ -773,9 +830,7 @@ const Intake: React.FC = () => {
                 </p>
 
                 {loadingForm ? (
-                  <p className="text-center text-gray-600 py-8">
-                    Loading form…
-                  </p>
+                  <p className="text-center text-gray-600 py-8">Loading form…</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {formFields.map((field, idx) => (
@@ -793,59 +848,37 @@ const Intake: React.FC = () => {
                             </label>
 
                             {field.description ? (
-                              <p className="mt-3 text-sm text-gray-600">
-                                {field.description}
-                              </p>
+                              <p className="mt-3 text-sm text-gray-600">{field.description}</p>
                             ) : null}
                           </div>
                         </div>
 
-                        <div className="mt-4">
-                          {renderInputForField(field, idx)}
-                        </div>
+                        <div className="mt-4">{renderInputForField(field, idx)}</div>
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           {typeof field.maxLength === "number" && (
-                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              maxLength: {field.maxLength}
-                            </span>
+                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">maxLength: {field.maxLength}</span>
                           )}
                           {field.min !== null && field.min !== undefined && (
-                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              min: {field.min}
-                            </span>
+                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">min: {field.min}</span>
                           )}
                           {field.max !== null && field.max !== undefined && (
-                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                              max: {field.max}
-                            </span>
+                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">max: {field.max}</span>
                           )}
                         </div>
 
-                        {/* {field.aiText ? (
-                          <p className="mt-3 text-sm text-indigo-700">
-                            {field.aiText}
-                          </p>
-                        ) : null} */}
                         {field.description ? (
-                          <p className="mt-3 text-sm text-indigo-700">
-                            {field.description}
-                          </p>
+                          <p className="mt-3 text-sm text-indigo-700">{field.description}</p>
                         ) : null}
 
                         <div className="mt-3">
                           {field.required &&
                           (field.value === "" ||
                             field.value === null ||
-                            (Array.isArray(field.value) &&
-                              field.value.length === 0)) ? (
-                            <p className="text-sm text-red-700 bg-red-50 px-3 py-2 rounded">
-                              {field.errorText || "This field is required."}
-                            </p>
+                            (Array.isArray(field.value) && field.value.length === 0)) ? (
+                            <p className="text-sm text-red-700 bg-red-50 px-3 py-2 rounded">{field.errorText || "This field is required."}</p>
                           ) : field.errorText ? (
-                            <p className="text-sm text-gray-500">
-                              {field.errorText}
-                            </p>
+                            <p className="text-sm text-gray-500">{field.errorText}</p>
                           ) : null}
                         </div>
                       </div>
@@ -878,26 +911,18 @@ const Intake: React.FC = () => {
             <div className="w-full max-w-3xl mx-auto p-8 bg-gradient-to-r from-brand-charcoal to-brand-midgrey rounded-2xl shadow-lg text-white flex flex-col md:flex-row items-start md:items-center gap-6">
               {/* Left Section: Explanation */}
               <div className="flex-1">
-                <h2 className="text-2xl md:text-3xl font-bold mb-4">
-                  ⚠️ No Active Plan Found
-                </h2>
+                <h2 className="text-2xl md:text-3xl font-bold mb-4">⚠️ No Active Plan Found</h2>
                 <p className="text-sm md:text-base opacity-90 mb-4">
-                  It looks like you don’t currently have an active plan. Without
-                  a plan, you won’t be able to track your dog’s progress, unlock
-                  Gut Checks, or get personalised meal plans and guidance.
+                  It looks like you don’t currently have an active plan. Without a plan, you won’t be able to track your dog’s progress, unlock Gut Checks, or get personalised meal plans and guidance.
                 </p>
 
-                <p className="text-sm md:text-base opacity-90 mb-4">
-                  By activating a plan, you’ll get:
-                </p>
+                <p className="text-sm md:text-base opacity-90 mb-4">By activating a plan, you’ll get:</p>
                 <ul className="list-disc list-inside mb-4 space-y-1 text-sm md:text-base opacity-90">
                   <li>Daily Gut Checks to monitor your dog’s health</li>
                   <li>Personalised meal plans tailored to their gut</li>
                   <li>Supplement guidance and adherence tracking</li>
                   <li>Phase recommendations and progress insights</li>
-                  <li>
-                    Assessment form to determine your dog’s starting phase
-                  </li>
+                  <li>Assessment form to determine your dog’s starting phase</li>
                 </ul>
 
                 {/* Compare Plans Hover Link */}
@@ -910,9 +935,7 @@ const Intake: React.FC = () => {
               {/* Right Section: CTA */}
               <div className="flex-1 flex flex-col items-center md:items-end mt-4 md:mt-0">
                 <p className="text-white font-semibold mb-4 text-center md:text-right">
-                  Activate a plan today and start tracking your dog’s gut
-                  health! Complete the assessment form to get a personalised
-                  starting phase.
+                  Activate a plan today and start tracking your dog’s gut health! Complete the assessment form to get a personalised starting phase.
                 </p>
                 <button
                   className="px-6 py-3 bg-white text-brand-charcoal font-semibold rounded-xl shadow hover:bg-gray-100 transition text-sm md:text-base mb-2"

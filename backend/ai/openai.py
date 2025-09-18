@@ -7,6 +7,23 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 from datetime import datetime
 
+def safe_json_loads(val: str):
+    if not isinstance(val, str):
+        return val
+    cleaned = val.strip()
+    # Remove markdown-style code fences if present
+    if cleaned.startswith("```"):
+        # drop leading and trailing fences
+        cleaned = cleaned.strip("`")
+        # sometimes starts with "json\n"
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].lstrip("\n\r ")
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].rstrip()
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        return {"raw": val}  # fallback
 
 def call_gpt_chat(
     user_message: str,
@@ -115,9 +132,9 @@ Do not include any explanations outside this JSON and nothing before first '{'.
     # Assuming at least one choice is returned
     res = {}
     try:
-        res = json.loads(data["choices"][0]["message"]["content"])
+        res = safe_json_loads(data["choices"][0]["message"]["content"])
     except Exception as e:
-        print(e)
+        print("AI generation error occured: ",e)
 
     return res
 
@@ -221,7 +238,7 @@ Do not include any explanations outside this JSON and nothing before first '{'.
     data = response.json()
 
     try:
-        result = json.loads(data["choices"][0]["message"]["content"])
+        result = safe_json_loads(data["choices"][0]["message"]["content"])
     except Exception as e:
         print("Error parsing JSON:", e)
         result = {
@@ -292,6 +309,5 @@ Description: Color of the dog.
 ---"""
     try:
         reply = call_gpt_chat(user, "protocol")
-        print("Assistant:", reply)
     except Exception as e:
         print("Error:", e)

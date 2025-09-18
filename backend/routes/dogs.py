@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body, Request
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from sqlalchemy import func
@@ -6,9 +6,9 @@ from app import models, schemas
 from app.dependecies import get_current_user  # assuming you have JWT auth
 from sqlalchemy.exc import IntegrityError
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from ai.openai import call_gpt_chat
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional, Dict
 from uuid import UUID
 from pydantic import BaseModel
@@ -18,6 +18,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from botocore.client import Config
 from uuid import uuid4
 from dotenv import load_dotenv
+import json
 
 # Load .env from parent directory
 load_dotenv()
@@ -100,26 +101,30 @@ def add_activity(activities: Optional[List[Dict]], new_activity: Dict) -> List[D
 
 @router.post("/create-dog")
 def create_dog(
-    dog: schemas.DogCreate,
+    dog: Dict[str, Any] = Body(...),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """
+    Accept raw dict body. We coerce/validate common fields and then run the
+    original creation flow. This is defensive: accepts strings for dates/floats,
+    treats missing form_data gracefully, and logs minimal debug info.
+    """
     try:
-        user_data = dog.form_data["fullFormFields"] or []
-        dog_form_structure = db.query(models.OnboardingForm).first().json_data or []
-        # Merge form and user data for AI processing
-        merged_data, merged_string = merge_form_and_user_data_for_ai(
-            dog_form_structure, user_data
-        )
+        # --- raw payload inspections (useful in logs) ---
+        # print("create_dog payload:", dog)  # uncomment if you want server logs
 
-        # --- normalize/validate name ---
-        if not dog.name or not dog.name.strip():
+        # --- required field: name ---
+        name_raw = dog.get("name", "") or ""
+        if not isinstance(name_raw, str):
+            name_raw = str(name_raw or "")
+        name_clean = name_raw.strip()
+        if not name_clean:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Dog name is required."
             )
-        name_clean = dog.name.strip()
 
-        # --- check uniqueness for this owner (case-insensitive) ---
+        # --- uniqueness check (case-insensitive) ---
         existing = (
             db.query(models.Dog)
             .filter(
@@ -129,44 +134,114 @@ def create_dog(
             .first()
         )
         if existing:
-            # Conflict: same owner already has a dog with this name
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="A dog with this name already exists for this account. Choose a different name.",
             )
 
-        # --- normalize/merge form_data ---
-        form_data: Dict[str, Any] = dog.form_data.copy() if dog.form_data else {}
+        # --- helper coercions ---
+        def coerce_date(val) -> Optional[date]:
+            if val is None:
+                return None
+            if isinstance(val, date) and not isinstance(val, datetime):
+                return val
+            if isinstance(val, datetime):
+                return val.date()
+            if isinstance(val, (int, float)):
+                # treat as timestamp (seconds)
+                try:
+                    return datetime.fromtimestamp(int(val)).date()
+                except Exception:
+                    return None
+            if isinstance(val, str):
+                v = val.strip()
+                if v == "" or v.lower() == "null":
+                    return None
+                # try common formats
+                for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%dT%H:%M:%S"):
+                    try:
+                        return datetime.strptime(v, fmt).date()
+                    except Exception:
+                        continue
+                # fallback to fromisoformat
+                try:
+                    return datetime.fromisoformat(v).date()
+                except Exception:
+                    return None
+            return None
 
-        # prefer explicit weight_kg, otherwise check form_data keys
-        weight_kg = (
-            dog.weight_kg
-            if dog.weight_kg is not None
-            else (form_data.get("weight_kg") or form_data.get("weight") or None)
+        def coerce_float(val) -> Optional[float]:
+            if val is None:
+                return None
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                v = val.strip()
+                if v == "" or v.lower() == "null":
+                    return None
+                try:
+                    return float(v)
+                except Exception:
+                    return None
+            return None
+
+        # --- coerce/normalize top-level fields ---
+        dob = coerce_date(dog.get("date_of_birth") or dog.get("dob"))
+        weight_kg = coerce_float(dog.get("weight_kg") or dog.get("weight"))
+        breed = dog.get("breed")
+        sex = dog.get("sex")
+        notes = dog.get("notes") or dog.get("behaviorNotes") or ""
+
+        # --- form_data normalization ---
+        form_data_raw = dog.get("form_data", {}) or {}
+        # If client sent a JSON string for form_data, attempt to parse it
+        if isinstance(form_data_raw, str):
+            try:
+                form_data_raw = json.loads(form_data_raw)
+            except Exception:
+                # leave as string in form_data; downstream code may expect dict though
+                form_data_raw = {"raw": form_data_raw}
+
+        if not isinstance(form_data_raw, dict):
+            # try to coerce list-of-kv into dict (common mistake)
+            try:
+                # if they sent [{"key":"k","value":"v"}, ...]
+                fd = {}
+                if isinstance(form_data_raw, list):
+                    for item in form_data_raw:
+                        if isinstance(item, dict) and "key" in item:
+                            fd[item["key"]] = item.get("value")
+                if fd:
+                    form_data_raw = fd
+                else:
+                    # fallback: store as wrapper
+                    form_data_raw = {"_raw": form_data_raw}
+            except Exception:
+                form_data_raw = {"_raw": form_data_raw}
+
+        # Extract user_data for AI function (maintains old expectation)
+        user_data = form_data_raw.get("fullFormFields") or []
+
+        # If DB form structure exists, fetch it safely
+        onboarding_row = db.query(models.OnboardingForm).first()
+        dog_form_structure = (onboarding_row.json_data if onboarding_row else None) or []
+
+        # --- Merge for AI processing (keeps your existing function) ---
+        merged_data, merged_string = merge_form_and_user_data_for_ai(
+            dog_form_structure, user_data
         )
-        if weight_kg is not None:
-            form_data["weight_kg"] = weight_kg
 
-        # behavior/notes
-        if dog.notes:
-            form_data["behaviorNotes"] = dog.notes
-        else:
-            form_data.setdefault("behaviorNotes", form_data.get("behaviorNotes", ""))
-
-        # copy a few commonly expected fields into form_data if present
-        if getattr(dog, "age", None) is not None:
-            form_data.setdefault("age", getattr(dog, "age"))
-        if getattr(dog, "stoolType", None) is not None:
-            form_data.setdefault("stoolType", getattr(dog, "stoolType"))
-        if getattr(dog, "symptoms", None) is not None:
-            form_data.setdefault("symptoms", getattr(dog, "symptoms"))
-
-        # Generate overview.............
+        # --- Generate AI fields (your functions remain the same) ---
         generated_overview = call_gpt_chat(merged_string, "overview")
         generated_protocol = call_gpt_chat(merged_string, "protocol")
 
+        # --- Activities: coerce existing activities to list then add our activity ---
+        activities_input = dog.get("activities") or form_data_raw.get("activities") or []
+        if not isinstance(activities_input, list):
+            activities_input = [activities_input]
+
         activities = add_activity(
-            dog.activities,
+            activities_input,
             {
                 "title": "Requested doctor for diagnosis",
                 "timestamp": datetime.now(),
@@ -175,16 +250,34 @@ def create_dog(
             },
         )
 
-        # Keep top-level columns for fast queries, and persist the rest into form_data JSON
+        # --- Build final form_data JSON to store ---
+        # prefer explicit weight_kg, otherwise keep what was in form_data
+        if weight_kg is not None:
+            form_data_raw["weight_kg"] = weight_kg
+
+        if notes:
+            form_data_raw["behaviorNotes"] = notes
+        else:
+            form_data_raw.setdefault("behaviorNotes", form_data_raw.get("behaviorNotes", ""))
+
+        # copy some fields if present at top-level
+        if "age" in dog and dog["age"] is not None:
+            form_data_raw.setdefault("age", dog["age"])
+        if "stoolType" in dog and dog["stoolType"] is not None:
+            form_data_raw.setdefault("stoolType", dog["stoolType"])
+        if "symptoms" in dog and dog["symptoms"] is not None:
+            form_data_raw.setdefault("symptoms", dog["symptoms"])
+
+        # --- Persist Dog record ---
         new_dog = models.Dog(
             owner_id=current_user.id,
             name=name_clean,
-            breed=dog.breed,
-            sex=dog.sex,
-            date_of_birth=dog.date_of_birth,
+            breed=breed,
+            sex=sex,
+            date_of_birth=dob,
             weight_kg=weight_kg,
-            notes=dog.notes if dog.notes else form_data.get("behaviorNotes", ""),
-            form_data=form_data,
+            notes=notes or form_data_raw.get("behaviorNotes", ""),
+            form_data=form_data_raw,
             overview=generated_overview,
             protocol=generated_protocol,
             activities=activities,
@@ -195,13 +288,13 @@ def create_dog(
         db.commit()
         db.refresh(new_dog)
 
-        # --- create corresponding submission ---
+        # --- create corresponding submission (same as before) ---
         submission = models.OnboardingSubmission(
             user_id=current_user.id,
             dog_id=new_dog.id,
-            behaviour_note=form_data.get("behaviorNotes", ""),
+            behaviour_note=form_data_raw.get("behaviorNotes", ""),
             status="pending",
-            symptoms=form_data.get("symptoms"),
+            symptoms=form_data_raw.get("symptoms"),
             confidence=None,
             diagnosis=None,
         )
@@ -222,15 +315,13 @@ def create_dog(
                 "notes": new_dog.notes,
                 "form_data": new_dog.form_data,
                 "overview": new_dog.overview,
-                "activities": activities,
-                "status": new_dog.status,
                 "protocol": new_dog.protocol,
-                "activities": new_dog.activities
+                "activities": new_dog.activities,
+                "status": new_dog.status,
             },
         }
 
     except IntegrityError as ie:
-        # DB-level integrity problem — rollback and return server error
         db.rollback()
         print("create_dog IntegrityError:", ie)
         raise HTTPException(
@@ -247,7 +338,6 @@ def create_dog(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error creating dog.",
         )
-
 
 @router.post("/get-dogs")
 def get_dogs(

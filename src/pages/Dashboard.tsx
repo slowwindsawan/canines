@@ -305,16 +305,6 @@ const Dashboard: React.FC = () => {
     : null;
   const currentProtocol = protocolHistory[0]; // Most recent protocol
 
-  //Next steps
-  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-
-  const pendingSteps = selectedDog?.overview?.what_to_do_goals.filter(
-    (step) => !step.completed
-  );
-  const completedCount = selectedDog?.overview?.what_to_do_goals.filter(
-    (step) => step.completed
-  ).length;
-
   const toggleStepCompletion = async (stepId: any) => {
     setSelectedDog((prevDog) => {
       if (!prevDog) return prevDog;
@@ -1066,7 +1056,7 @@ const Dashboard: React.FC = () => {
                                             )
                                           : ""}
                                         -{" "}
-                                        {selectedDog.overview.phase.description}
+                                        {selectedDog?.overview?.phase?.description}
                                       </span>
                                     </div>
                                   </div>
@@ -1106,7 +1096,7 @@ const Dashboard: React.FC = () => {
                                             (element, index) =>
                                               element.title === "Breakfast" ? (
                                                 <span key={index}>
-                                                  {element.description}
+                                                  {element?.description}
                                                 </span>
                                               ) : null
                                           )}
