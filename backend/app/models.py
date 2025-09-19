@@ -1,13 +1,13 @@
 # app/models.py
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from app.form_default import DEFAULT_ONBOARDING_FORM
 from copy import deepcopy
 
 from sqlalchemy import (
     Column, String, Boolean, DateTime, ForeignKey, Text, Integer, Float,
-    UniqueConstraint, Index, Enum as SAEnum, JSON
+    UniqueConstraint, Index, Enum as SAEnum, JSON, func
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -393,3 +393,34 @@ class Article(Base):
     created_at, updated_at = ts_columns()
 
     author = relationship("User")
+
+class PendingUser(Base):
+    __tablename__ = "pending_users"
+
+    id = uuid_pk()
+    # keep username optional if you want user to choose at final step, but I'll include it
+    username = Column(String(80), index=True, nullable=True)
+    name = Column(String(100), nullable=True, default="")
+
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+
+    # OTP workflow
+    otp = Column(String(20), nullable=False)          # store OTP (optionally hashed)
+    otp_expiry = Column(DateTime(timezone=True), nullable=False)
+
+    # housekeeping timestamps
+    created_at, updated_at = ts_columns()
+
+    __table_args__ = (
+        Index("ix_pending_users_email_username", "email", "username"),
+    )
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    otp = Column(String(6), nullable=False)  # exactly 6 digits
+    otp_expiry = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

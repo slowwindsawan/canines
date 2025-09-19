@@ -52,9 +52,6 @@ const Navbar: React.FC = () => {
                     {item.name}
                   </Link>
                 ))}
-                <div>
-                  <Bell size={20} />
-                </div>
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-dark-700">
                     Welcome, {user.name}
@@ -117,13 +114,6 @@ const Navbar: React.FC = () => {
                 <p className="text-sm text-dark-700 mb-2">
                   Welcome, {user.name}
                 </p>
-                <Link
-                  to="/admin"
-                  className="w-full bg-primary-300 hover:bg-primary-400 text-dark-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors block text-center mb-2"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Admin Panel
-                </Link>
                 <button
                   onClick={logout}
                   className="w-full bg-primary-400 hover:bg-primary-500 text-dark-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
