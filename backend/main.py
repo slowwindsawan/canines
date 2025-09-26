@@ -226,10 +226,10 @@ async def cron_status():
 # -------------------------------
 # Run with uvicorn
 # -------------------------------
-if __name__ == "__main__":
-    print("Starting the FastAPI server....")
-    # For development:
-    # uvicorn main:app --reload
-    # For production ensure single worker if you want only one in-process scheduler:
-    # uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
-    uvicorn.run("main:app", host="localhost", port=8000, reload=True)
+# if __name__ == "__main__":
+#     print("Starting the FastAPI server....")
+#     # For development:
+#     # uvicorn main:app --reload
+#     # For production ensure single worker if you want only one in-process scheduler:
+#     # uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+#     uvicorn.run("main:app", host="localhost", port=8000, reload=True)
