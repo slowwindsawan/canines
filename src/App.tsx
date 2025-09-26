@@ -36,6 +36,7 @@ import ProtocolEditor from "./pages/ProtocolEditor";
 import PublicRoute from "./PublicRoute";
 import BlogEditor from "./pages/BlogEditor";
 import BlogList from "./pages/BlogList";
+import UsersList from "./pages/admin/UsersList";
 
 // Layouts
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -70,7 +71,6 @@ const App: React.FC = () => {
         const styleTag = document.createElement("style");
         styleTag.innerHTML = cssText;
         document.head.appendChild(styleTag);
-        console.log("External CSS injected!", styleTag);
       } catch (err) {
         console.error("Error loading CSS:", err);
       }
@@ -149,6 +149,16 @@ const App: React.FC = () => {
                   <AdminRoute>
                     <AdminLayout>
                       <SubmissionsList />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <UsersList />
                     </AdminLayout>
                   </AdminRoute>
                 }

@@ -30,7 +30,7 @@ const Navbar: React.FC = () => {
           <div className="flex items-center">
             <Link to="/dashboard" className="flex items-center space-x-2">
               <span className="text-xl font-bold text-dark-900">
-                <img className="w-[150px] sm:w-[200px]" src={logo} />
+                <img className="w-[150px] sm:w-[200px]" src={"https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png?v="+Date.now()} />
               </span>
             </Link>
           </div>

@@ -330,7 +330,7 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         {/* Logo & Welcome */}
         <div className="text-center translate-y-[34px]">
-          <img className="w-[300px] md:w-[300px] m-auto mb-4" src={logo} alt="Logo" />
+          <img className="w-[300px] md:w-[300px] m-auto mb-4" src={"https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png?v="+Date.now()} alt="Logo" />
           <div className="grid grid-cols-3 items-center bg-transparent py-0 px-2 rounded-xl">
             <div className="col-span-1">
               <img src={dog1} alt="Dog" className="w-full aspect-square object-cover rounded-lg" />

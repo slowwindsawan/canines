@@ -37,7 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const data = await jwtRequest("/me", "POST");
         setUser(data);
-        console.log("Fetched user:", data);
       } catch (error) {
         console.error("Error fetching dogs:", error);
       } finally {

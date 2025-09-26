@@ -43,9 +43,7 @@ const Settings: React.FC = () => {
     logoUrl: initial.logoUrl || "",
     // optional file if user uploads a new logo
     logoFile: null,
-    logoPreview:
-      initial.logoUrl ||
-      "https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png",
+    logoPreview:"https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png?v="+Date.now(),
     // original fields you had
     primaryColor: initial.primaryColor || "#10b981",
     secondaryColor: initial.secondaryColor || "#14b8a6",
@@ -438,7 +436,7 @@ const Settings: React.FC = () => {
                           </label>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/png"
                             onChange={handleLogoChange}
                             className="block w-full text-sm text-gray-500 file:border-0"
                           />

@@ -5,12 +5,14 @@ import { Shield, Menu, X, Bell } from 'lucide-react';
 import logo from "./logo.png"
 
 const AdminNavbar: React.FC = () => {
+  const {siteSettings} = useAdmin();
   const { adminUser, notifications } = useAdmin();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/admin' },
+    { name: 'Users', href: '/admin/users' },
     // { name: 'Submissions', href: '/admin/submissions' },
     // { name: 'Messages', href: '/admin/messages' },
     // { name: 'Notifications', href: '/admin/notifications' },
@@ -27,7 +29,7 @@ const AdminNavbar: React.FC = () => {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link to="/admin" className="flex items-center space-x-2">
-              <img className="w-[200px] b-2" src={logo} />
+              <img className="w-[200px] b-2" src={"https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png?v="+Date.now()} />
               <span className="text-xl font-bold text-gray-900">Admin Panel</span>
             </Link>
           </div>

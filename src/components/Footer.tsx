@@ -8,7 +8,7 @@ const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center space-x-2 mb-4 md:mb-0">
-            <span className="text-lg font-semibold text-dark-900"><img className="w-[150px] sm:w-[200px]" src={logo} /></span>
+            <span className="text-lg font-semibold text-dark-900"><img className="w-[150px] sm:w-[200px]" src={"https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png?v="+Date.now()} /></span>
           </div>
           <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-dark-700">
             <a href="#" className="hover:text-dark-900 transition-colors"><b className='text-gray-600'>Support:</b> admin@thecaninenutritionist.com</a>

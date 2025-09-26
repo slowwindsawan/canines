@@ -1,5 +1,5 @@
 # app/routers/admin.py
-from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, UploadFile, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Form, File, UploadFile, Request, status, Path
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
 from uuid import UUID
@@ -8,7 +8,7 @@ from sqlalchemy import or_, func, desc
 from app import models
 from app.schemas import *
 from app.config import SessionLocal
-from app.dependecies import get_current_user, get_db as project_get_db  # keep existing get_current_user
+from app.dependecies import get_current_user, get_db as project_get_db
 from pydantic import BaseModel, constr
 import re, os, boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -16,13 +16,12 @@ from botocore.client import Config
 from io import BytesIO
 from dotenv import load_dotenv
 
+from typing import Optional, List, Tuple, Dict
+from app.models import User, Dog, SubscriptionTier, SubscriptionStatus
 # Load .env from parent directory
 load_dotenv()
 
-# --------------------- Utilities ---------------------
-
 def get_db():
-    """Local DB dependency (keeps your original pattern)."""
     db = SessionLocal()
     try:
         yield db
@@ -481,3 +480,206 @@ async def save_settings(
     print("save_settings returning ", {"css_url": css_url, "logo_url": logo_url})
 
     return {"success": True, "css_url": css_url, "logo_url": logo_url}
+
+
+def _serialize_datetime(dt):
+    return dt.isoformat() if dt is not None else None
+
+def _serialize_user(u: User, dogs_count: int):
+    return {
+        "id": str(u.id),
+        "username": u.username,
+        "name": u.name,
+        "email": u.email,
+        "role": u.role.value if hasattr(u.role, "value") else u.role,
+        "stripe_customer_id": u.stripe_customer_id,
+        "stripe_subscription_id": u.stripe_subscription_id,
+        "subscription_price_id": u.stripe_price_id,
+        "subscription_tier": (u.subscription_tier.value if hasattr(u.subscription_tier, "value") else u.subscription_tier),
+        "subscription_status": (u.subscription_status.value if hasattr(u.subscription_status, "value") else u.subscription_status),
+        "subscription_current_period_end": _serialize_datetime(u.subscription_current_period_end),
+        "is_on_trial": bool(u.is_on_trial),
+        "is_active": bool(u.is_active),
+        "created_at": _serialize_datetime(u.created_at),
+        "updated_at": _serialize_datetime(u.updated_at),
+        "dogs_count": int(dogs_count),
+    }
+
+def _serialize_dog(d: Dog):
+    return {
+        "id": str(d.id),
+        "name": d.name,
+        "image_url": d.image_url,
+        "breed": d.breed,
+        "sex": d.sex,
+        "date_of_birth": _serialize_datetime(d.date_of_birth),
+        "weight_kg": float(d.weight_kg) if d.weight_kg is not None else None,
+        "notes": d.notes,
+        "status": d.status,
+        "created_at": _serialize_datetime(d.created_at),
+        "updated_at": _serialize_datetime(d.updated_at),
+    }
+
+# assume router and get_db already defined in this module
+# router = APIRouter(tags=["admin"])
+@router.get("/users")
+def admin_list_users(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(25, ge=1, le=200, description="Items per page"),
+    q: Optional[str] = Query(None, description="Search query for email, name or username (case-insensitive)"),
+    status: Optional[str] = Query(None, description="Filter by subscription_status (e.g., active, trialing)"),
+    plan: Optional[str] = Query(None, description="Filter by subscription_tier (foundation, therapeutic, comprehensive)"),
+    order_by: Optional[str] = Query("created_at", description="Order by field (created_at, name, email)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Admin endpoint to fetch users with pagination + totals.
+
+    - `q` searches email, name, username (ilike %q%).
+    - `status` filters subscription_status.
+    - `plan` filters subscription_tier.
+    - Returns: users (list), pagination metadata, totals:
+        - total_users: all users in DB
+        - filtered_users: number after applying filters
+        - active_subscriptions: count of subscription_status == 'active' (overall)
+        - by_plan: counts for the three SubscriptionTier values (applies current filters)
+        - by_subscription_status: counts grouped by subscription_status (applies current filters)
+    """
+    # --- build filters (q -> OR across fields; status/plan -> exact matches combined with AND) ---
+    filters = []
+    if q:
+        q_like = f"%{q}%"
+        filters.append(or_(
+            User.email.ilike(q_like),
+            User.name.ilike(q_like),
+            User.username.ilike(q_like),
+        ))
+
+    if status:
+        # Expecting a string like "active", "trialing", etc.
+        filters.append(User.subscription_status == status)
+
+    if plan:
+        # Expecting a string like "foundation", "therapeutic", "comprehensive"
+        filters.append(User.subscription_tier == plan)
+
+    # --- totals (overall and filtered) ---
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    filtered_users = db.query(func.count(User.id)).filter(*filters).scalar() if filters else total_users
+
+    # overall active subscriptions (not affected by current filters)
+    active_subscriptions = db.query(func.count(User.id)).filter(User.subscription_status == SubscriptionStatus.ACTIVE.value).scalar() or 0
+
+    # counts per plan (apply current filters so these reflect the filtered set)
+    plan_counts_query = db.query(User.subscription_tier, func.count(User.id))
+    if filters:
+        plan_counts_query = plan_counts_query.filter(*filters)
+    plan_counts_query = plan_counts_query.group_by(User.subscription_tier)
+    raw_plan_counts = plan_counts_query.all()  # list of (tier, count)
+
+    # normalize into dict including all known tiers (default 0)
+    by_plan = {
+        SubscriptionTier.FOUNDATION.value: 0,
+        SubscriptionTier.THERAPEUTIC.value: 0,
+        SubscriptionTier.COMPREHENSIVE.value: 0,
+    }
+    for tier, cnt in raw_plan_counts:
+        key = tier.value if hasattr(tier, "value") else tier
+        if key is None:
+            continue
+        by_plan[key] = int(cnt)
+
+    # subscription status counts (apply current filters)
+    status_counts = {}
+    status_q = db.query(User.subscription_status, func.count(User.id)).group_by(User.subscription_status)
+    if filters:
+        status_q = status_q.filter(*filters)
+    for st, cnt in status_q.all():
+        k = st.value if hasattr(st, "value") else st
+        status_counts[k] = int(cnt)
+
+    # --- user list with dogs_count (single query using outerjoin + group_by) ---
+    order_col = User.created_at
+    if order_by == "name":
+        order_col = User.name
+    elif order_by == "email":
+        order_col = User.email
+
+    offset = (page - 1) * per_page
+
+    base_query = db.query(User, func.count(Dog.id).label("dogs_count")).outerjoin(Dog, Dog.owner_id == User.id)
+    if filters:
+        base_query = base_query.filter(*filters)
+
+    users_with_counts: List[Tuple[User, int]] = (
+        base_query.group_by(User.id)
+          .order_by(desc(order_col))
+          .limit(per_page)
+          .offset(offset)
+          .all()
+    )
+
+    def _serialize_datetime(dt):
+        return dt.isoformat() if dt is not None else None
+
+    def _serialize_user(u: User, dogs_count: int):
+        return {
+            "id": str(u.id),
+            "username": u.username,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role.value if hasattr(u.role, "value") else u.role,
+            "stripe_customer_id": u.stripe_customer_id,
+            "stripe_subscription_id": u.stripe_subscription_id,
+            "subscription_price_id": u.stripe_price_id,
+            "subscription_tier": (u.subscription_tier.value if hasattr(u.subscription_tier, "value") else u.subscription_tier),
+            "subscription_status": (u.subscription_status.value if hasattr(u.subscription_status, "value") else u.subscription_status),
+            "subscription_current_period_end": _serialize_datetime(u.subscription_current_period_end),
+            "is_on_trial": bool(u.is_on_trial),
+            "is_active": bool(u.is_active),
+            "created_at": _serialize_datetime(u.created_at),
+            "updated_at": _serialize_datetime(u.updated_at),
+            "dogs_count": int(dogs_count),
+        }
+
+    users_serialized = [_serialize_user(u, dogs_count) for u, dogs_count in users_with_counts]
+
+    # --- pagination metadata ---
+    total_pages = (int(filtered_users) + per_page - 1) // per_page if per_page else 1
+
+    response = {
+        "users": users_serialized,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+            "filtered_users": int(filtered_users),
+            "total_users": int(total_users),
+        },
+        "totals": {
+            "total_users": int(total_users),
+            "filtered_users": int(filtered_users),
+            "active_subscriptions": int(active_subscriptions),
+            "by_plan": by_plan,
+            "by_subscription_status": status_counts,
+        }
+    }
+
+    return response
+
+@router.get("/users/{user_id}/dogs")
+def admin_get_user_dogs(
+    user_id: UUID = Path(..., description="User UUID"),
+    db: Session = Depends(get_db),
+):
+    """
+    Return list of dogs for a user — frontend expects { dogs: [...] }.
+    """
+    # ensure user exists (clear 404 for nicer UX)
+    user_exists = db.query(func.count(User.id)).filter(User.id == user_id).scalar()
+    if not user_exists:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    dogs: List[Dog] = db.query(Dog).filter(Dog.owner_id == user_id).order_by(Dog.created_at.desc()).all()
+    dogs_serialized = [_serialize_dog(d) for d in dogs]
+    return {"dogs": dogs_serialized}

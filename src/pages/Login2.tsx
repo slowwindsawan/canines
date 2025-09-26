@@ -50,7 +50,7 @@ const Login: React.FC = () => {
         <div className="text-center translate-y-[34px]">
           <img
             className="w-[300px] md:w-[300px] m-auto mb-25px mb-4"
-            src={logo}
+            src={"https://pub-ca340ec4947844b7b26bbdd00685b95c.r2.dev/logo.png?v="+Date.now()}
           />
           <div className="w-[400px] m-auto text-center">
             <h2

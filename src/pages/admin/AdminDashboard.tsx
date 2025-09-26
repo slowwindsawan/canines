@@ -13,6 +13,7 @@ import {
   Shield,
   Notebook,
   NotebookIcon,
+  Users2,
 } from "lucide-react";
 import { jwtRequest } from "../../env";
 import { useGlobalStore } from "../../globalStore";
@@ -91,20 +92,20 @@ const AdminDashboard: React.FC = () => {
   }, []);
 
   const quickStats = [
-    {
-      title: "Pending Reviews",
-      value: pendingSubmissions,
-      icon: Clock,
-      color: "bg-yellow-50 text-yellow-600",
-      href: "/admin/submissions?status=pending",
-    },
-    {
-      title: "Urgent Cases",
-      value: urgentCases,
-      icon: AlertTriangle,
-      color: "bg-red-50 text-red-600",
-      href: "/admin/submissions?priority=urgent",
-    },
+    // {
+    //   title: "Pending Reviews",
+    //   value: pendingSubmissions,
+    //   icon: Clock,
+    //   color: "bg-yellow-50 text-yellow-600",
+    //   href: "/admin/submissions?status=pending",
+    // },
+    // {
+    //   title: "Urgent Cases",
+    //   value: urgentCases,
+    //   icon: AlertTriangle,
+    //   color: "bg-red-50 text-red-600",
+    //   href: "/admin/submissions?priority=urgent",
+    // },
     // {
     //   title: "Notifications",
     //   value: unreadNotifications,
@@ -193,6 +194,24 @@ const AdminDashboard: React.FC = () => {
             );
           })}
           <Link
+            to={"/admin/users"}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Manage your users
+                </p>
+                <p className="text-xl font-bold text-gray-900 mt-1">
+                  Users
+                </p>
+              </div>
+              <div className={`p-3 rounded-lg bg-green-50 text-green-600`}>
+                <Users2 className="h-6 w-6" />
+              </div>
+            </div>
+          </Link>
+          <Link
             to={"/admin/blogs"}
             className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
           >
@@ -280,7 +299,7 @@ const AdminDashboard: React.FC = () => {
         </section>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center space-x-2 mb-6">
             <Activity className="h-6 w-6 text-gray-500" />
             <h3 className="text-xl font-semibold text-gray-900">
@@ -309,7 +328,7 @@ const AdminDashboard: React.FC = () => {
               <p className="text-gray-500">No recent activity to display</p>
             </div>
           )}
-        </div>
+        </div> */}
       </div>
     </div>
   );
