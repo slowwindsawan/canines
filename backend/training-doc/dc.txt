@@ -1,0 +1,209 @@
+The Canine Gut Fix, Nutrition Engine, v1.0
+
+Single Source of Truth, Developer Specification
+
+⸻
+
+1) Scope and Goals
+	•	Compute science-based nutrient targets for dogs only across:
+	•	Growth
+	•	Adult maintenance
+	•	Gestation
+	•	Lactation
+	•	Output targets in three expressions:
+	1.	Per kg Dry Matter (DM)
+	2.	Per 1,000 kcal Metabolizable Energy (ME)
+	3.	Per metabolic body weight (BW^0.75)
+	•	Respect NRC categories: MR minimal requirement, AI adequate intake, RA recommended allowance, SUL safe upper limit.
+	•	Include NRC conversion assumptions and exceptions so the engine stays correct when diet energy density ≠ 4,000 kcal ME/kg DM.
+
+⸻
+
+2) Canonical Definitions, must be coded
+	•	MR = minimal concentration of a bioavailable nutrient that supports a defined physiological state.
+	•	AI = used when MR is unknown; best available concentration to sustain a given life stage.
+	•	RA = diet concentration to reliably meet needs, typically MR or AI plus a bioavailability safety factor.
+	•	SUL = maximal intake not associated with adverse effects (often missing, especially for vitamins and minerals, must be nullable).
+
+⸻
+
+3) Global NRC Assumptions, constants and baselines
+	•	Standard energy density: 4,000 kcal ME/kg DM.
+	•	Standard reference animals (dogs only):
+	•	Adult maintenance: 15 kg, 1,000 kcal/day
+	•	Puppy (growth): 5.5 kg, 1,000 kcal/day
+	•	Lactating bitch: 22 kg with 8 puppies, 5,000 kcal/day
+
+Why this matters: These define the NRC table values and the math for converting nutrient units by DM, energy, or metabolic body weight.
+
+⸻
+
+4) Data Model
+
+4.1 Entities
+
+Species: {dog}
+LifeStage: {growth, adult_maintenance, gestation, lactation}
+NutrientClass: {energy, protein_amino_acids, fat_fatty_acids, macrominerals, trace_minerals, vitamins}
+
+NutrientRecord
+	•	id
+	•	life_stage
+	•	nutrient_name
+	•	unit_dm_basis, value_dm_MR, value_dm_AI, value_dm_RA, value_dm_SUL (nullable)
+	•	unit_per_1000kcal, value_1000kcal_MR, AI, RA, SUL (nullable)
+	•	unit_metabolic_bw, value_bwm_MR, AI, RA, SUL (nullable)
+	•	notes [array of strings] for footnotes and constraints
+	•	source_reference (e.g. “NRC 2006, Table 15-5”)
+	•	updated_at
+
+DietContext
+	•	energy_density_kcal_per_kg_dm
+	•	moisture_fraction
+	•	feeding_intake_kcal_per_day
+	•	body_weight_kg
+	•	expected_mature_bw_kg (for growth only)
+	•	breed (optional overlays later)
+
+RuleFlag
+	•	arginine_extra_needed (boolean)
+	•	iron_copper_oxide_disallowed (default true)
+	•	epa_dha_ratio_cap (default true)
+
+⸻
+
+5) Core Formulas and Algorithms
+
+5.1 Energy density adjustment
+
+adjusted_amt_per_kg_DM = table_amt_per_kg_DM * (actual_kcal_ME_per_kg_DM / 4,000)
+
+5.2 Daily amount from per-1,000 kcal
+
+daily_amt = value_per_1000kcal * (feeding_intake_kcal_per_day / 1000)
+
+5.3 Metabolic body weight basis
+
+Dogs use BW^0.75.
+
+5.4 Energy requirement equations (dogs only)
+	•	Maintenance: kcal ME per kg BW^0.75 per day.
+	•	Gestation: same basis, adjusted per stage.
+	•	Lactation: depends on BW^0.75, absolute BW, and number of puppies.
+	•	Growth: maintenance × factor that depends on actual BW ÷ expected mature BW.
+
+5.5 Special nutrient rules
+	1.	Arginine bonus for puppies
+	•	Add 0.01 g arginine for each g crude protein above thresholds:
+	•	4–14 weeks: threshold = 180 g MR / 225 g RA.
+	•	14 weeks: threshold = 140 g MR / 175 g RA.
+	2.	EPA:DHA guardrail
+	•	EPA must not exceed 60% of total EPA+DHA.
+	3.	Iron and copper oxide forms
+	•	Must be rejected (bioavailability too low).
+	4.	Vitamin conversions
+	•	Vitamin A: 1 μg retinol = 3.333 IU, 1 IU = 0.3 μg retinol.
+	•	Vitamin D3: 1 μg cholecalciferol = 40 IU.
+	•	Vitamin E: 1 IU = 1 mg all-rac-α-tocopheryl acetate.
+	5.	Tyrosine hair coat note
+	•	For black coat color, tyrosine requirement may be 1.5–2× standard.
+
+⸻
+
+6) Algorithm, end-to-end
+
+Inputs:
+	•	life_stage, body_weight_kg, expected_mature_bw_kg (for growth), diet_energy_density_kcal_per_kg_DM, intake_kcal_per_day (optional), rule_flags.
+
+Steps:
+	1.	Compute intake if unknown (energy requirement formulas).
+	2.	Load NRC nutrient records for life stage.
+	3.	Adjust per-kg DM values if diet ≠ 4,000 kcal ME/kg DM.
+	4.	Convert to daily amounts.
+	5.	Apply rules: arginine, EPA:DHA, iron/copper oxide exclusion, vitamin conversions.
+	6.	Validate SULs (error if exceeded, null = warning).
+	7.	Output MR, AI, RA, SUL in all units + daily values + notes/warnings.
+
+⸻
+
+7) File and API Contracts
+
+7.1 CSV schema (dogs only)
+	•	life_stage, nutrient, class
+	•	unit_dm, dm_MR, dm_AI, dm_RA, dm_SUL
+	•	unit_1000kcal, k_MR, k_AI, k_RA, k_SUL
+	•	unit_bwm, bwm_MR, bwm_AI, bwm_RA, bwm_SUL
+	•	footnotes, source_table, source_page
+
+Populate with NRC Chapter 15 (dogs only):
+	•	15-2, 15-3: Puppy growth
+	•	15-4, 15-5: Adult maintenance
+	•	15-6, 15-7, 15-8: Gestation and lactation
+
+7.2 REST API Example
+
+Request:
+
+{
+  "species": "dog",
+  "life_stage": "adult_maintenance",
+  "body_weight_kg": 18,
+  "diet_energy_density_kcal_per_kg_dm": 3800,
+  "intake_kcal_per_day": null,
+  "rule_flags": {
+    "iron_copper_oxide_disallowed": true,
+    "epa_dha_ratio_cap": true
+  }
+}
+
+Response:
+	•	Returns nutrient targets (MR, AI, RA, SUL) per DM, per 1,000 kcal, per BW^0.75, plus daily values and warnings.
+
+⸻
+
+8) Validation Rules & Warnings
+	•	Energy intake sanity: must match BW^0.75 equation.
+	•	Gestation: fallback to lactation values adjusted for calories if direct data missing.
+	•	SUL missing: must be nullable, warn only.
+
+⸻
+
+9) Footnote Logic & Examples
+	•	Arginine add-on: if RA = 225 g/kg DM, diet provides 250 g/kg DM → +0.25 g arginine per kg DM.
+	•	EPA limit: enforce DHA ≥40% of EPA+DHA.
+	•	Vitamin conversion helpers: normalize brand data.
+
+⸻
+
+10) UI Notes
+	•	Show RA as default. MR/AI in advanced mode.
+	•	Display red cap for SUL; “no established upper limit” if null.
+	•	Include puppy age-band selector for arginine rule.
+
+⸻
+
+11) Testing Checklist
+	•	Validate energy-density conversions (e.g., 3,200 vs 4,500 kcal/kg DM).
+	•	Puppy daily amounts correct via per-1,000 kcal formula.
+	•	Arginine add-on triggers correctly.
+	•	EPA:DHA ratio enforced.
+	•	Iron/copper oxides rejected.
+
+⸻
+
+12) Known Gaps & Handling
+	•	Gestation values limited → fallback to lactation adjusted by calories.
+	•	Missing SULs → keep null.
+
+⸻
+
+13) Quick-Reference Equations
+
+adj = table_per_kg_DM * (diet_kcal_per_kg_DM / 4000)
+daily = per_1000kcal * intake_kcal / 1000
+maintenance = c * BW^0.75
+arginine_add = 0.01 g * max(0, protein_g_per_kg_DM − threshold)
+EPA <= 0.60 * (EPA + DHA)
+
+14) Source Map
+	•	NRC, Nutrient Requirements of Dogs and Cats, Chapter 15 (dog tables only).

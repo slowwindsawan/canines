@@ -50,18 +50,19 @@ class DogCreate(BaseModel):
     progress: Optional[dict]
 
 class DogUpdate(BaseModel):
-    name: Optional[str] = None
-    breed: Optional[str] = None
-    sex: Optional[str] = None
-    date_of_birth: Optional[datetime] = None
-    weight_kg: Optional[float] = None
-    notes: Optional[str] = None
-    form_data: Optional[Dict[str, Any]] = None
-    overview: Optional[Dict[str, Any]] = None
-    protocol: Optional[Dict[str, Any]] = None
-    admin: Optional[bool] = None
-    status: Optional[str] = None
-    progress: Optional[List[Dict[str, Any]]] = None  # now accepts a list
+    # name: Optional[str] = None
+    # breed: Optional[str] = None
+    # sex: Optional[str] = None
+    # date_of_birth: Optional[datetime] = None
+    # weight_kg: Optional[float] = None
+    # notes: Optional[str] = None
+    # form_data: Optional[Dict[str, Any]] = None
+    # overview: Optional[Dict[str, Any]] = None
+    # protocol: Optional[Dict[str, Any]] = None
+    # admin: Optional[bool] = None
+    # status: Optional[str] = None
+    # progress: Optional[List[Dict[str, Any]]] = None  # now accepts a list
+    form_data: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 

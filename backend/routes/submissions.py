@@ -9,7 +9,7 @@ import json
 from app import models, schemas
 from app.config import SessionLocal
 from app.dependecies import get_current_user
-from ai.openai import analyze_health_logs
+from ai.openai_client import analyze_health_logs
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 

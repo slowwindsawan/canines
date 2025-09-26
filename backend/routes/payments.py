@@ -28,11 +28,11 @@ class Settings(BaseSettings):
     STRIPE_CURRENCY: str = "usd"
 
     # When you don't want to maintain Stripe Prices, configure amounts (in cents)
-    STRIPE_PLAN_AMOUNT_FOUNDATION: int = 2900        # $29.00
-    STRIPE_PLAN_AMOUNT_THERAPEUTIC: int = 6900      # $69.00
-    STRIPE_PLAN_AMOUNT_COMPREHENSIVE: int = 14900   # $149.00
-    STRIPE_SUCCESS_URL: str = "https://app.thecaninenutritionist.com/login/dashboard"
-    STRIPE_CANCEL_URL: str = "https://app.thecaninenutritionist.com/login/dashboard"
+    STRIPE_PLAN_AMOUNT_FOUNDATION: int = None        # $29.00
+    STRIPE_PLAN_AMOUNT_THERAPEUTIC: int = None      # $69.00
+    STRIPE_PLAN_AMOUNT_COMPREHENSIVE: int = None   # $149.00
+    STRIPE_SUCCESS_URL: str = "https://app.thecaninenutritionist.com/dashboard"
+    STRIPE_CANCEL_URL: str = "https://app.thecaninenutritionist.com/dashboard"
 
     # Optional: canonical Stripe Price IDs (recommended for exact mapping)
     STRIPE_PRICE_ID_FOUNDATION: Optional[str] = None

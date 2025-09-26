@@ -1,8 +1,8 @@
 // env.js
 import axios from "axios";
 
-// const BASE_URL = "http://localhost:8000";
-const BASE_URL = "https://server.thecaninenutritionist.com";
+const BASE_URL = "http://localhost:8000";
+// const BASE_URL = "https://server.thecaninenutritionist.com";
 
 /**
  * Helper to get JWT token from localStorage

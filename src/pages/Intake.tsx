@@ -354,7 +354,7 @@ const Intake: React.FC = () => {
 
       if (response?.success) {
         alert("Dog updated successfully!");
-        window.location.href = "/dashboard";
+        window.location.href = "/dashboard?dog_id=" + id;
       } else {
         alert(response?.message || "Failed to update dog.");
       }
@@ -399,6 +399,7 @@ const Intake: React.FC = () => {
         weight_lbs: dogPayload.weight_lbs > 0 ? dogPayload.weight_lbs : undefined,
         notes: dogPayload.behaviorNotes || undefined,
         id: dogPayload.id,
+        image_url: imagePreview || undefined,
         form_data: {
           age: dogPayload.age,
           stoolType: dogPayload.stoolType,

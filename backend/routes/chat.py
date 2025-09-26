@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from app.dependecies import get_current_user
-from ai.openai import ask_question
+from ai.openai_client import ask_question
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 

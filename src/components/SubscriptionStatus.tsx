@@ -18,62 +18,6 @@ interface Props {
   currentPlan?: PlanKey | null;
 }
 
-const PLANS: Record<
-  PlanKey,
-  {
-    title: string;
-    priceLabel: string;
-    subtitle: string;
-    bullets: string[];
-    cta: string;
-    accent?: string;
-    ribbon?: string | null;
-    emoji?: string;
-    description?: string;
-  }
-> = {
-  foundation: {
-    title: "Foundation",
-    priceLabel: "$29",
-    subtitle: "/ month / per dog",
-    bullets: ["AI gut plan", "Tips", "Library", "Guides"],
-    cta: "Choose Foundation",
-    emoji: "🌱",
-    description: "Perfect for day-to-day maintenance and prevention.",
-  },
-  therapeutic: {
-    title: "Therapeutic",
-    priceLabel: "$69",
-    subtitle: "/ month / per dog",
-    bullets: [
-      "Foundations +",
-      "Weekly meal plans",
-      "Symptom tracker charts",
-      "Supplement cycling",
-      "Phase upgrade request",
-    ],
-    cta: "Choose Therapeutic",
-    accent: "ring-2 ring-indigo-400/30",
-    ribbon: "🎯 Most Popular",
-    emoji: "🎯",
-    description: "Advanced care workflows and in-depth plans.",
-  },
-  comprehensive: {
-    title: "Comprehensive",
-    priceLabel: "$149",
-    subtitle: "/ month / per dog",
-    bullets: [
-      "Therapeutic +",
-      "Live group calls",
-      "Personalised AI-human reviews",
-      "Discount on 1:1 consult",
-    ],
-    cta: "Choose Comprehensive",
-    emoji: "👑",
-    description: "Full support, live calls and priority reviews.",
-  },
-};
-
 const PLAN_RANK: Record<PlanKey, number> = {
   foundation: 0,
   therapeutic: 1,
@@ -92,7 +36,63 @@ export default function SubscriptionCenterPage({
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetched, setFetched] = useState(false);
-  const {user}=useAuth()
+  const { user } = useAuth();
+
+  const PLANS: Record<
+    PlanKey,
+    {
+      title: string;
+      priceLabel: string;
+      subtitle: string;
+      bullets: string[];
+      cta: string;
+      accent?: string;
+      ribbon?: string | null;
+      emoji?: string;
+      description?: string;
+    }
+  > = {
+    foundation: {
+      title: "Foundation",
+      priceLabel: `$${user?.plans ? Math.floor(user.plans[0].foundation / 100) : "29"}`,
+      subtitle: "/ month / per dog",
+      bullets: ["AI gut plan", "Tips", "Library", "Guides"],
+      cta: "Choose Foundation",
+      emoji: "🌱",
+      description: "Perfect for day-to-day maintenance and prevention.",
+    },
+    therapeutic: {
+      title: "Therapeutic",
+      priceLabel: `$${user?.plans ? Math.floor(user.plans[0].therapeutic / 100) : "69"}`,
+      subtitle: "/ month / per dog",
+      bullets: [
+        "Foundations +",
+        "Weekly meal plans",
+        "Symptom tracker charts",
+        "Supplement cycling",
+        "Phase upgrade request",
+      ],
+      cta: "Choose Therapeutic",
+      accent: "ring-2 ring-indigo-400/30",
+      ribbon: "🎯 Most Popular",
+      emoji: "🎯",
+      description: "Advanced care workflows and in-depth plans.",
+    },
+    comprehensive: {
+      title: "Comprehensive",
+      priceLabel: `$${user?.plans ? Math.floor(user.plans[0].comprehensive / 100) : "149"}`,
+      subtitle: "/ month / per dog",
+      bullets: [
+        "Therapeutic +",
+        "Live group calls",
+        "Personalised AI-human reviews",
+        "Discount on 1:1 consult",
+      ],
+      cta: "Choose Comprehensive",
+      emoji: "👑",
+      description: "Full support, live calls and priority reviews.",
+    },
+  };
 
   // local optimistic plan and pending change state
   const [localPlan, setLocalPlan] = useState<PlanKey | null>(
@@ -557,8 +557,14 @@ export default function SubscriptionCenterPage({
         </section>
 
         <footer className="mt-12 text-center text-sm text-slate-500">
-          Need a custom plan or team discount? Contact support via the email on
-          your account.
+          Want a 1:1 Zoom consultation? Contact support via the email (
+          <a
+            className="text-bold hover:underline text-blue-600 hover:text-blue-700"
+            href="mailto:consult@thecaninenutritionist.com?subject=1%3A1%20Consultation%20Booking%20Request&body=Hi%20The%20Canine%20Nutritionist,%0A%0AI%20would%20like%20to%20book%20a%201%3A1%20consultation%20for%20pet%20gut%20health.%0A%0AMy%20details%20are%3A%0A-%20Name%3A%0A-%20Pet%27s%20Name%20and%20Age%3A%0A-%20Preferred%20Dates%3A%0A-%20Questions%3A%0A%0AThanks%2C"
+          >
+            admin@thecaninenutritionist.com
+          </a>
+          ) on your account.
         </footer>
       </div>
 

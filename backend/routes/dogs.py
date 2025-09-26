@@ -1,4 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    UploadFile,
+    File,
+    Form,
+    Body,
+    Request,
+)
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from sqlalchemy import func
@@ -7,7 +17,11 @@ from app.dependecies import get_current_user  # assuming you have JWT auth
 from sqlalchemy.exc import IntegrityError
 import uuid
 from typing import Any, Dict, List, Optional
-from ai.openai import call_gpt_chat
+from ai.openai_client import (
+    call_gpt_chat,
+    get_current_health_status_summary,
+    analyze_health_logs,
+)
 from datetime import datetime, date
 from typing import List, Optional, Dict
 from uuid import UUID
@@ -33,6 +47,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 def merge_form_and_user_data_for_ai(form_structure, user_data):
     form_lookup = {f["name"]: f for f in form_structure}
@@ -77,6 +92,7 @@ def merge_form_and_user_data_for_ai(form_structure, user_data):
 
     return final_json, final_string
 
+
 def add_activity(activities: Optional[List[Dict]], new_activity: Dict) -> List[Dict]:
     """
     Adds a new activity to the list, keeping at most 5 items.
@@ -98,6 +114,7 @@ def add_activity(activities: Optional[List[Dict]], new_activity: Dict) -> List[D
         activities = activities[-5:]
 
     return activities
+
 
 @router.post("/create-dog")
 def create_dog(
@@ -158,7 +175,13 @@ def create_dog(
                 if v == "" or v.lower() == "null":
                     return None
                 # try common formats
-                for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%dT%H:%M:%S"):
+                for fmt in (
+                    "%Y-%m-%d",
+                    "%Y/%m/%d",
+                    "%d-%m-%Y",
+                    "%d/%m/%Y",
+                    "%Y-%m-%dT%H:%M:%S",
+                ):
                     try:
                         return datetime.strptime(v, fmt).date()
                     except Exception:
@@ -191,6 +214,7 @@ def create_dog(
         breed = dog.get("breed")
         sex = dog.get("sex")
         notes = dog.get("notes") or dog.get("behaviorNotes") or ""
+        image_url = dog.get("image_url") or None
 
         # --- form_data normalization ---
         form_data_raw = dog.get("form_data", {}) or {}
@@ -224,7 +248,9 @@ def create_dog(
 
         # If DB form structure exists, fetch it safely
         onboarding_row = db.query(models.OnboardingForm).first()
-        dog_form_structure = (onboarding_row.json_data if onboarding_row else None) or []
+        dog_form_structure = (
+            onboarding_row.json_data if onboarding_row else None
+        ) or []
 
         # --- Merge for AI processing (keeps your existing function) ---
         merged_data, merged_string = merge_form_and_user_data_for_ai(
@@ -236,7 +262,21 @@ def create_dog(
         generated_protocol = call_gpt_chat(merged_string, "protocol")
 
         # --- Activities: coerce existing activities to list then add our activity ---
-        activities_input = dog.get("activities") or form_data_raw.get("activities") or []
+        activities_input = (
+            dog.get("activities") or form_data_raw.get("activities") or []
+        )
+        try:
+            dog_current_health_status = get_current_health_status_summary(merged_string)
+            dog.progress = [
+                {
+                    "summary": dog_current_health_status,
+                    "date": datetime.now().date().isoformat(),
+                    "improvement_score": "0",
+                    "id": str(uuid4()),
+                }
+            ]
+        except Exception as e:
+            print("Could not analyze the dog's health: ", e)
         if not isinstance(activities_input, list):
             activities_input = [activities_input]
 
@@ -258,7 +298,9 @@ def create_dog(
         if notes:
             form_data_raw["behaviorNotes"] = notes
         else:
-            form_data_raw.setdefault("behaviorNotes", form_data_raw.get("behaviorNotes", ""))
+            form_data_raw.setdefault(
+                "behaviorNotes", form_data_raw.get("behaviorNotes", "")
+            )
 
         # copy some fields if present at top-level
         if "age" in dog and dog["age"] is not None:
@@ -281,7 +323,8 @@ def create_dog(
             overview=generated_overview,
             protocol=generated_protocol,
             activities=activities,
-            status="in_review",
+            status="approved",
+            image_url=image_url or None,
         )
 
         db.add(new_dog)
@@ -289,18 +332,18 @@ def create_dog(
         db.refresh(new_dog)
 
         # --- create corresponding submission (same as before) ---
-        submission = models.OnboardingSubmission(
-            user_id=current_user.id,
-            dog_id=new_dog.id,
-            behaviour_note=form_data_raw.get("behaviorNotes", ""),
-            status="pending",
-            symptoms=form_data_raw.get("symptoms"),
-            confidence=None,
-            diagnosis=None,
-        )
-        db.add(submission)
-        db.commit()
-        db.refresh(submission)
+        # submission = models.OnboardingSubmission(
+        #     user_id=current_user.id,
+        #     dog_id=new_dog.id,
+        #     behaviour_note=form_data_raw.get("behaviorNotes", ""),
+        #     status="pending",
+        #     symptoms=form_data_raw.get("symptoms"),
+        #     confidence=None,
+        #     diagnosis=None,
+        # )
+        # db.add(submission)
+        # db.commit()
+        # db.refresh(submission)
 
         return {
             "success": True,
@@ -339,12 +382,20 @@ def create_dog(
             detail="Error creating dog.",
         )
 
+
 @router.post("/get-dogs")
 def get_dogs(
     db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
 ):
     try:
-        dogs = db.query(models.Dog).filter(models.Dog.owner_id == current_user.id).all()
+        dogs = (
+            db.query(models.Dog)
+            .filter(models.Dog.owner_id == current_user.id)
+            .order_by(
+                models.Dog.id.desc()
+            )  # or models.Dog.created_at.desc() if you have timestamp
+            .all()
+        )
         return {
             "success": True,
             "dogs": [
@@ -360,7 +411,7 @@ def get_dogs(
                 for d in dogs
             ],
         }
-    except Exception as e:
+    except Exception:
         return {"success": False, "message": "Error fetching dogs"}
 
 
@@ -396,7 +447,7 @@ def get_dog_by_id(
             "protocol": dog.protocol,
             "overview": dog.overview,
             "progress": dog.progress,
-            "image_url": dog.image_url
+            "image_url": dog.image_url,
         },
     }
 
@@ -416,30 +467,20 @@ def update_dog_by_id(
         )
         .first()
     )
-    user_data = dog.form_data["fullFormFields"] or []
-    dog_form_structure = db.query(models.OnboardingForm).first().json_data or []
-    # Merge form and user data for AI processing
-    merged_data, merged_string = merge_form_and_user_data_for_ai(
-        dog_form_structure, user_data
-    )
+    form_data = dog_update.form_data or ""
     if not dog:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found"
         )
 
-    # Merge form_data
-    form_data: Dict[str, Any] = dog.form_data.copy() if dog.form_data else {}
-    if dog_update.form_data:
-        form_data.update(dog_update.form_data)
-
     # Handle top-level fields
-    dog.name = dog_update.name.strip() if dog_update.name else dog.name
-    dog.breed = dog_update.breed or dog.breed
-    dog.sex = dog_update.sex or dog.sex
-    dog.date_of_birth = dog_update.date_of_birth or dog.date_of_birth
-    dog.weight_kg = dog_update.weight_kg or dog.weight_kg
-    dog.notes = dog_update.notes or form_data.get("behaviorNotes", dog.notes)
-    dog.form_data = form_data
+    # dog.name = dog_update.name.strip() if dog_update.name else dog.name
+    # dog.breed = dog_update.breed or dog.breed
+    # dog.sex = dog_update.sex or dog.sex
+    # dog.date_of_birth = dog_update.date_of_birth or dog.date_of_birth
+    # dog.weight_kg = dog_update.weight_kg or dog.weight_kg
+    # dog.notes = dog_update.notes or form_data.get("behaviorNotes", dog.notes)
+    # dog.form_data = form_data
 
     try:
         if "admin" not in dog_update.__dict__ or not dog_update.admin:
@@ -452,11 +493,38 @@ def update_dog_by_id(
                     "type": "consultation",
                 },
             )
-            generated_overview = call_gpt_chat(merged_string, "overview")
-            generated_protocol = call_gpt_chat(merged_string, "protocol")
+            generated_overview = call_gpt_chat(form_data, "overview")
+            generated_protocol = call_gpt_chat(form_data, "protocol")
             dog.overview = generated_overview
             dog.protocol = generated_protocol
-            dog.status = "in_review"
+            dog.status = "approved"
+            try:
+                dog_current_health_status = get_current_health_status_summary(form_data)
+                if not dog.progress:
+                    dog.progress = [
+                        {
+                            "summary": dog_current_health_status,
+                            "date": datetime.now().date().isoformat(),
+                            "improvement_score": "0",
+                            "id": str(uuid4()),
+                        }
+                    ]
+                else:
+                    health_analysis = analyze_health_logs(json.dumps(dog.progress[-8:]))
+                    dog.progress = [
+                        {
+                            "summary": dog_current_health_status,
+                            "date": datetime.now().date().isoformat(),
+                            "improvement_score": health_analysis.get(
+                                "health_score", "0"
+                            ),
+                            "id": str(uuid4()),
+                        }
+                    ]+dog.progress
+                    print("New health analysis:", dog.progress)
+                    dog.health_summary = health_analysis
+            except Exception as e:
+                print("Could not analyze the dog's health: ", e)
         else:
             dog.protocol = dog_update.__dict__["protocol"]
             dog.overview = dog_update.__dict__["overview"]
@@ -474,19 +542,19 @@ def update_dog_by_id(
         db.refresh(dog)
 
         # --- create corresponding submission ---
-        submission = models.OnboardingSubmission(
-            user_id=current_user.id,
-            dog_id=dog.id,
-            behaviour_note=form_data.get("behaviorNotes", ""),
-            status="pending",
-            symptoms=form_data.get("symptoms"),
-            diagnosis=None,
-            confidence=dog.protocol.get("confidence", 0) if isinstance(dog.protocol, dict) else 0
-        )
-        
-        db.add(submission)
-        db.commit()
-        db.refresh(submission)
+        # submission = models.OnboardingSubmission(
+        #     user_id=current_user.id,
+        #     dog_id=dog.id,
+        #     behaviour_note=form_data.get("behaviorNotes", ""),
+        #     status="pending",
+        #     symptoms=form_data.get("symptoms"),
+        #     diagnosis=None,
+        #     confidence=dog.protocol.get("confidence", 0) if isinstance(dog.protocol, dict) else 0
+        # )
+
+        # db.add(submission)
+        # db.commit()
+        # db.refresh(submission)
         return {
             "success": True,
             "message": "Dog created successfully",
@@ -502,7 +570,7 @@ def update_dog_by_id(
                 "overview": dog.overview,
                 "protocol": dog.protocol,
                 "activities": activities,
-                "status": dog.status
+                "status": dog.status,
             },
         }
     except IntegrityError as e:
@@ -548,6 +616,7 @@ def delete_dog_by_id(
             detail="Error deleting dog",
         )
 
+
 class DogStatusUpdate(schemas.BaseModel):
     status: str  # e.g., "in_review", "approved", "rejected"
 
@@ -561,7 +630,9 @@ def update_dog_status(
 ):
     dog = (
         db.query(models.Dog)
-        .filter(models.Dog.id == uuid.UUID(dog_id), models.Dog.owner_id == current_user.id)
+        .filter(
+            models.Dog.id == uuid.UUID(dog_id), models.Dog.owner_id == current_user.id
+        )
         .first()
     )
     if not dog:
@@ -618,7 +689,9 @@ def update_dog_status(
         # -------- Update AdminSettings.activities -------- #
         admin_settings = db.query(models.AdminSettings).first()
         if not admin_settings:
-            admin_settings = models.AdminSettings(admin_id=current_user.id, activities=[])
+            admin_settings = models.AdminSettings(
+                admin_id=current_user.id, activities=[]
+            )
             db.add(admin_settings)
 
         admin_activities = admin_settings.activities or []
@@ -649,12 +722,14 @@ def update_dog_status(
                 "status": dog.status,
                 "activities": dog.activities,
             },
-            "submission": {
-                "id": str(submission.id) if submission else None,
-                "status": submission.status if submission else None,
-            }
-            if submission
-            else None,
+            "submission": (
+                {
+                    "id": str(submission.id) if submission else None,
+                    "status": submission.status if submission else None,
+                }
+                if submission
+                else None
+            ),
             "admin_settings": {
                 "id": str(admin_settings.id),
                 "last_updated_by": str(admin_settings.admin_id),
@@ -669,7 +744,8 @@ def update_dog_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error updating dog status",
         )
-    
+
+
 class DogUpdateByPayload(BaseModel):
     id: UUID
     name: Optional[str] = None
@@ -689,6 +765,7 @@ class DogUpdateByPayload(BaseModel):
     class Config:
         orm_mode = True
 
+
 @router.put("/update-by-payload")
 def update_dog_by_payload(
     payload: DogUpdateByPayload,
@@ -701,7 +778,9 @@ def update_dog_by_payload(
         .first()
     )
     if not dog:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Dog not found"
+        )
 
     # safe read & merge form_data (shallow merge)
     form_data: Dict[str, Any] = dog.form_data.copy() if dog.form_data else {}
@@ -741,7 +820,7 @@ def update_dog_by_payload(
                     "type": "consultation",
                 },
             )
-            dog.status = "in_review"
+            dog.status = "approved"
         else:
             activities = add_activity(
                 existing_activities,
@@ -763,18 +842,18 @@ def update_dog_by_payload(
         db.refresh(dog)
 
         # create corresponding submission
-        submission = models.OnboardingSubmission(
-            user_id=current_user.id,
-            dog_id=dog.id,
-            behaviour_note=form_data.get("behaviorNotes", ""),
-            status="pending",
-            symptoms=form_data.get("symptoms"),
-            confidence=None,
-            diagnosis=None,
-        )
-        db.add(submission)
-        db.commit()
-        db.refresh(submission)
+        # submission = models.OnboardingSubmission(
+        #     user_id=current_user.id,
+        #     dog_id=dog.id,
+        #     behaviour_note=form_data.get("behaviorNotes", ""),
+        #     status="pending",
+        #     symptoms=form_data.get("symptoms"),
+        #     confidence=None,
+        #     diagnosis=None,
+        # )
+        # db.add(submission)
+        # db.commit()
+        # db.refresh(submission)
 
         return {
             "success": True,
@@ -794,7 +873,6 @@ def update_dog_by_payload(
                 "status": dog.status,
                 "progress": dog.progress,
             },
-            "submission_id": str(submission.id),
         }
 
     except IntegrityError:
@@ -807,18 +885,23 @@ def update_dog_by_payload(
         db.rollback()
         print("update_dog_by_payload error:", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error updating dog"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating dog",
         )
-    
+
+
 def get_r2_client():
     return boto3.client(
         "s3",
         region_name="auto",  # Dummy region, required
         aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
         aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
-        endpoint_url=os.getenv("R2_ENDPOINT"),  # https://<account_id>.r2.cloudflarestorage.com
+        endpoint_url=os.getenv(
+            "R2_ENDPOINT"
+        ),  # https://<account_id>.r2.cloudflarestorage.com
         config=Config(signature_version="s3v4"),  # ✅ Force correct signing
     )
+
 
 def build_r2_public_url(key: str):
     # Prefer explicit public base if provided
@@ -832,6 +915,7 @@ def build_r2_public_url(key: str):
         return f"https://{bucket}.{account}.r2.cloudflarestorage.com/{key}"
     # final fallback - return key only
     return key
+
 
 @router.post("/image")
 async def upload_dog_image(
@@ -849,11 +933,11 @@ async def upload_dog_image(
     # Basic validations
     ALLOWED_TYPES = {
         "image/jpeg",
-        "image/jpg",     # alias
+        "image/jpg",  # alias
         "image/png",
         "image/webp",
         "image/gif",
-        "image/pjpeg",   # some browsers use this
+        "image/pjpeg",  # some browsers use this
         "application/octet-stream",  # fallback for misreported
     }
 
@@ -861,8 +945,7 @@ async def upload_dog_image(
 
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported image type: {image.content_type}"
+            status_code=400, detail=f"Unsupported image type: {image.content_type}"
         )
 
     # read the file into memory up to the limit (we'll stream to R2)
@@ -873,7 +956,9 @@ async def upload_dog_image(
     # Build key and upload
     bucket = os.getenv("R2_BUCKET")
     if not bucket:
-        raise HTTPException(status_code=500, detail="R2_BUCKET not configured on server.")
+        raise HTTPException(
+            status_code=500, detail="R2_BUCKET not configured on server."
+        )
 
     # Use owner id and a uuid filename for uniqueness
     ext = ""
@@ -885,6 +970,7 @@ async def upload_dog_image(
         client = get_r2_client()
         # upload_fileobj expects a file-like object; use BytesIO
         from io import BytesIO
+
         fileobj = BytesIO(contents)
 
         # Set ContentType so the object serves with correct MIME type
@@ -901,10 +987,14 @@ async def upload_dog_image(
                 dog_uuid = uuid.UUID(id)
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid dog id format.")
-            dog = db.query(models.Dog).filter(
-                models.Dog.id == dog_uuid,
-                models.Dog.owner_id == current_user.id,
-            ).first()
+            dog = (
+                db.query(models.Dog)
+                .filter(
+                    models.Dog.id == dog_uuid,
+                    models.Dog.owner_id == current_user.id,
+                )
+                .first()
+            )
             if not dog:
                 raise HTTPException(status_code=404, detail="Dog not found.")
             # Save URL to dog record (and optionally into form_data)
@@ -925,8 +1015,9 @@ async def upload_dog_image(
     except (BotoCoreError, ClientError) as be:
         # S3 / R2 upload error
         print("R2 upload error:", be)
-        raise HTTPException(status_code=500, detail="Failed to upload image to storage.")
+        raise HTTPException(
+            status_code=500, detail="Failed to upload image to storage."
+        )
     except Exception as e:
         print("upload_dog_image error:", e)
         raise HTTPException(status_code=500, detail="Image upload failed.")
-
