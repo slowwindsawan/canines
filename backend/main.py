@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from app.auth_config import SECRET_KEY, ALGORITHM
 from routes import auth, formbuilder, dogs, submissions, admin, articles, chat, payments
 from app import models
+from app.consultaion import get_calendly_booking_message
 from app.dependecies import get_current_user
 from app.config import SessionLocal
 from ai.openai_client import daily_tip
@@ -86,6 +87,13 @@ def read_users_me(current_user: models.User = Depends(get_current_user), db: Ses
     # ✅ fetch admin tip from settings table
     admin_tip = db.query(models.AdminSettings).first()
     tip_value = admin_tip.tip if admin_tip else None
+    calendly_status = None
+    msg = None
+    email = current_user.email
+    try:
+        calendly_status, msg = get_calendly_booking_message(email=email)
+    except Exception as e:
+        print("Error fetching Calendly booking message:", e)
     try:
         if not current_user.subscription_current_period_end and current_user.subscription_status == "active":
             pe=get_subscription_end_by_email(current_user.email)
@@ -107,7 +115,9 @@ def read_users_me(current_user: models.User = Depends(get_current_user), db: Ses
         "dogs": current_user.dogs,
         "tips": tip_value,
         "user_type": current_user.role,
-        "plans":[{"foundation":os.getenv("STRIPE_PLAN_AMOUNT_FOUNDATION"),"therapeutic":os.getenv("STRIPE_PLAN_AMOUNT_THERAPEUTIC"),"comprehensive":os.getenv("STRIPE_PLAN_AMOUNT_COMPREHENSIVE")}]
+        "plans":[{"foundation":os.getenv("STRIPE_PLAN_AMOUNT_FOUNDATION"),"therapeutic":os.getenv("STRIPE_PLAN_AMOUNT_THERAPEUTIC"),"comprehensive":os.getenv("STRIPE_PLAN_AMOUNT_COMPREHENSIVE")}],
+        "calendly_status": calendly_status,
+        "calendly_message": msg
     }
 
 # -------------------------------

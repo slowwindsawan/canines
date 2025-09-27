@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import heartIcon from "../assets/heart.png";
 import { isSubscriptionActive, jwtRequest } from "../env";
 import PlansComparison from "../components/PlansComparision";
+import { motion, AnimatePresence } from "framer-motion";
 
 /**
  * Note: the zod schema you had is kept elsewhere if you need strict validation.
@@ -91,7 +92,7 @@ const requiredFieldTemplates: DynamicField[] = [
     name: "symptoms",
     label: "Symptoms",
     type: "checkbox",
-    required: true,
+    required: false,
     // default to an empty array (multiple choice)
     options: [
       { value: "vomiting", label: "Vomiting" },
@@ -132,6 +133,7 @@ const Intake: React.FC = () => {
   // --- New image-related state (standalone, optional) ---
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [otherSymptoms, setOtherSymptoms] = useState<string>("");
 
   // Weight unit state. Default kg. If server provides a `weightUnit` field we'll respect it.
   const [weightUnit, setWeightUnit] = useState<"kg" | "lb">("kg");
@@ -242,12 +244,24 @@ const Intake: React.FC = () => {
 
         // Set initial weight unit from server if provided
         const serverUnitField = merged.find((f) => f.name === "weightUnit");
-        if (serverUnitField && (serverUnitField.value === "lb" || serverUnitField.value === "kg")) {
+        if (
+          serverUnitField &&
+          (serverUnitField.value === "lb" || serverUnitField.value === "kg")
+        ) {
           setWeightUnit(serverUnitField.value === "lb" ? "lb" : "kg");
         }
 
+        // ===== If server included an 'otherSymptoms' field, populate local state =====
+        const serverOther = merged.find((f) => f.name === "otherSymptoms");
+        if (serverOther && typeof serverOther.value === "string") {
+          setOtherSymptoms(serverOther.value);
+        }
+
         const imageUrl =
-          data?.dog?.image_url || data?.dog?.photoUrl || data?.dog?.image || null;
+          data?.dog?.image_url ||
+          data?.dog?.photoUrl ||
+          data?.dog?.image ||
+          null;
         if (imageUrl) setImagePreview(String(imageUrl));
       } else {
         console.warn(
@@ -276,7 +290,10 @@ const Intake: React.FC = () => {
 
         // set weightUnit from server if present in merged
         const unitField = merged.find((f) => f.name === "weightUnit");
-        if (unitField && (unitField.value === "lb" || unitField.value === "kg")) {
+        if (
+          unitField &&
+          (unitField.value === "lb" || unitField.value === "kg")
+        ) {
           setWeightUnit(unitField.value === "lb" ? "lb" : "kg");
         }
 
@@ -331,6 +348,17 @@ const Intake: React.FC = () => {
       const weightKg = Number(getFieldValueByName("weight") || 0);
       const weightLbs = kgToLbs(Number(weightKg || 0));
 
+      // prepare symptoms list and append otherSymptoms if present
+      const existingSymptoms =
+        formFields.find((f) => f.name === "symptoms")?.value || [];
+      const symptomsArray = Array.isArray(existingSymptoms)
+        ? [...existingSymptoms]
+        : [];
+      if (otherSymptoms && otherSymptoms.trim().length > 0) {
+        // append as a single "other: ..." entry (you can change format if you like)
+        symptomsArray.push(`other: ${otherSymptoms.trim()}`);
+      }
+
       const payload = {
         name: formFields.find((f) => f.name === "name")?.value || "Unknown",
         breed: formFields.find((f) => f.name === "breed")?.value || "Unknown",
@@ -345,6 +373,7 @@ const Intake: React.FC = () => {
           stoolType:
             formFields.find((f) => f.name === "stoolType")?.value || "",
           symptoms: formFields.find((f) => f.name === "symptoms")?.value || [],
+          otherSymptoms: otherSymptoms || "",
           behaviorNotes:
             formFields.find((f) => f.name === "behaviorNotes")?.value || "",
         },
@@ -364,6 +393,8 @@ const Intake: React.FC = () => {
     setIsSubmitting(false);
   };
 
+  const [showWaitingAnimation, setShowWaitingAnimation] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (hasErrors) {
@@ -372,10 +403,21 @@ const Intake: React.FC = () => {
     }
 
     setIsSubmitting(true);
+    setShowWaitingAnimation(true);
 
     try {
       const weightKg = Number(getFieldValueByName("weight") || 0);
       const weightLbs = kgToLbs(Number(weightKg || 0));
+
+      // build symptoms array and include otherSymptoms if present
+      const existingSymptoms =
+        formFields.find((f) => f.name === "symptoms")?.value || [];
+      const symptomsArray = Array.isArray(existingSymptoms)
+        ? [...existingSymptoms]
+        : [];
+      if (otherSymptoms && otherSymptoms.trim().length > 0) {
+        symptomsArray.push(`other: ${otherSymptoms.trim()}`);
+      }
 
       const dogPayload = {
         name: String(getFieldValueByName("name") || "Unknown"),
@@ -396,7 +438,8 @@ const Intake: React.FC = () => {
         name: dogPayload.name,
         breed: dogPayload.breed,
         weight_kg: dogPayload.weight > 0 ? dogPayload.weight : undefined,
-        weight_lbs: dogPayload.weight_lbs > 0 ? dogPayload.weight_lbs : undefined,
+        weight_lbs:
+          dogPayload.weight_lbs > 0 ? dogPayload.weight_lbs : undefined,
         notes: dogPayload.behaviorNotes || undefined,
         id: dogPayload.id,
         image_url: imagePreview || undefined,
@@ -404,6 +447,7 @@ const Intake: React.FC = () => {
           age: dogPayload.age,
           stoolType: dogPayload.stoolType,
           symptoms: dogPayload.symptoms,
+          otherSymptoms: otherSymptoms || "",
           behaviorNotes: dogPayload.behaviorNotes,
           fullFormFields: formFields,
         },
@@ -432,6 +476,7 @@ const Intake: React.FC = () => {
       alert("Failed to submit. Please try again.");
     } finally {
       setIsSubmitting(false);
+      setShowWaitingAnimation(false);
     }
   };
 
@@ -487,7 +532,10 @@ const Intake: React.FC = () => {
           updateFieldAtIndex(idx, "");
           return;
         }
-        const nextKg = weightUnit === "kg" ? Number(nextDisplay) : lbsToKg(Number(nextDisplay));
+        const nextKg =
+          weightUnit === "kg"
+            ? Number(nextDisplay)
+            : lbsToKg(Number(nextDisplay));
         updateFieldAtIndex(idx, nextKg);
       };
 
@@ -497,7 +545,13 @@ const Intake: React.FC = () => {
             <input
               type="number"
               step="any"
-              value={displayVal === 0 ? (field.value === "" ? "" : displayVal) : displayVal}
+              value={
+                displayVal === 0
+                  ? field.value === ""
+                    ? ""
+                    : displayVal
+                  : displayVal
+              }
               onChange={(e) => {
                 const raw = e.target.value;
                 if (raw === "") return onChangeWeight("");
@@ -510,7 +564,9 @@ const Intake: React.FC = () => {
             />
 
             <div className="relative">
-              <label htmlFor="weight-unit" className="sr-only">Weight unit</label>
+              <label htmlFor="weight-unit" className="sr-only">
+                Weight unit
+              </label>
               <select
                 id="weight-unit"
                 value={weightUnit}
@@ -525,13 +581,9 @@ const Intake: React.FC = () => {
 
           <div className="text-xs text-gray-600">
             {weightUnit === "kg" ? (
-              <>
-                ≈ {kgToLbs(Number(kgVal || 0))} lb
-              </>
+              <>≈ {kgToLbs(Number(kgVal || 0))} lb</>
             ) : (
-              <>
-                ≈ {lbsToKg(Number(kgVal || 0))} kg
-              </>
+              <>≈ {lbsToKg(Number(kgVal || 0))} kg</>
             )}
           </div>
         </div>
@@ -619,26 +671,40 @@ const Intake: React.FC = () => {
     // checkbox options (multiple)
     if (field.type === "checkbox" && Array.isArray(field.options)) {
       return (
-        <div className="flex flex-col gap-2">
-          {field.options.map((opt: any, i: number) => {
-            const optVal = opt?.value ?? opt;
-            const optLabel = opt?.label ?? opt;
-            const checked = Array.isArray(value) && value.includes(optVal);
-            return (
-              <label key={i} className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(e) =>
-                    handleCheckboxOptionChange(optVal, e.target.checked)
-                  }
-                  className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
-                  name={field.name}
-                />
-                <span className="text-sm text-gray-700">{optLabel}</span>
-              </label>
-            );
-          })}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            {field.options.map((opt: any, i: number) => {
+              const optVal = opt?.value ?? opt;
+              const optLabel = opt?.label ?? opt;
+              const checked = Array.isArray(value) && value.includes(optVal);
+              return (
+                <label key={i} className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) =>
+                      handleCheckboxOptionChange(optVal, e.target.checked)
+                    }
+                    className="w-4 h-4 text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                    name={field.name}
+                  />
+                  <span className="text-sm text-gray-700">{optLabel}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-2">
+            <textarea
+              rows={3}
+              value={otherSymptoms}
+              onChange={(e) => setOtherSymptoms(e.target.value)}
+              placeholder="Describe other symptoms not listed above"
+              className="w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 border-gray-300"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Optional — this will be included with the symptoms.
+            </p>
+          </div>
         </div>
       );
     }
@@ -773,7 +839,9 @@ const Intake: React.FC = () => {
                     className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                   />
                 ) : (
-                  <div className="text-center text-gray-400 text-sm px-2">No photo</div>
+                  <div className="text-center text-gray-400 text-sm px-2">
+                    No photo
+                  </div>
                 )}
               </div>
 
@@ -803,7 +871,9 @@ const Intake: React.FC = () => {
                   </button>
 
                   <div className="text-gray-500 text-sm flex-1 text-center sm:text-left">
-                    {uploadingImage ? "Uploading…" : "Changes upload automatically"}
+                    {uploadingImage
+                      ? "Uploading…"
+                      : "Changes upload automatically"}
                   </div>
                 </div>
               </div>
@@ -831,7 +901,9 @@ const Intake: React.FC = () => {
                 </p>
 
                 {loadingForm ? (
-                  <p className="text-center text-gray-600 py-8">Loading form…</p>
+                  <p className="text-center text-gray-600 py-8">
+                    Please be patient while we load your dogs information...
+                  </p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {formFields.map((field, idx) => (
@@ -849,37 +921,54 @@ const Intake: React.FC = () => {
                             </label>
 
                             {field.description ? (
-                              <p className="mt-3 text-sm text-gray-600">{field.description}</p>
+                              <p className="mt-3 text-sm text-gray-600">
+                                {field.description}
+                              </p>
                             ) : null}
                           </div>
                         </div>
 
-                        <div className="mt-4">{renderInputForField(field, idx)}</div>
+                        <div className="mt-4">
+                          {renderInputForField(field, idx)}
+                        </div>
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           {typeof field.maxLength === "number" && (
-                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">maxLength: {field.maxLength}</span>
+                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                              maxLength: {field.maxLength}
+                            </span>
                           )}
                           {field.min !== null && field.min !== undefined && (
-                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">min: {field.min}</span>
+                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                              min: {field.min}
+                            </span>
                           )}
                           {field.max !== null && field.max !== undefined && (
-                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">max: {field.max}</span>
+                            <span className="text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                              max: {field.max}
+                            </span>
                           )}
                         </div>
 
                         {field.description ? (
-                          <p className="mt-3 text-sm text-indigo-700">{field.description}</p>
+                          <p className="mt-3 text-sm text-indigo-700">
+                            {field.description}
+                          </p>
                         ) : null}
 
                         <div className="mt-3">
                           {field.required &&
                           (field.value === "" ||
                             field.value === null ||
-                            (Array.isArray(field.value) && field.value.length === 0)) ? (
-                            <p className="text-sm text-red-700 bg-red-50 px-3 py-2 rounded">{field.errorText || "This field is required."}</p>
+                            (Array.isArray(field.value) &&
+                              field.value.length === 0)) ? (
+                            <p className="text-sm text-red-700 bg-red-50 px-3 py-2 rounded">
+                              {field.errorText || "This field is required."}
+                            </p>
                           ) : field.errorText ? (
-                            <p className="text-sm text-gray-500">{field.errorText}</p>
+                            <p className="text-sm text-gray-500">
+                              {field.errorText}
+                            </p>
                           ) : null}
                         </div>
                       </div>
@@ -912,18 +1001,26 @@ const Intake: React.FC = () => {
             <div className="w-full max-w-3xl mx-auto p-8 bg-gradient-to-r from-brand-charcoal to-brand-midgrey rounded-2xl shadow-lg text-white flex flex-col md:flex-row items-start md:items-center gap-6">
               {/* Left Section: Explanation */}
               <div className="flex-1">
-                <h2 className="text-2xl md:text-3xl font-bold mb-4">⚠️ No Active Plan Found</h2>
+                <h2 className="text-2xl md:text-3xl font-bold mb-4">
+                  ⚠️ No Active Plan Found
+                </h2>
                 <p className="text-sm md:text-base opacity-90 mb-4">
-                  It looks like you don’t currently have an active plan. Without a plan, you won’t be able to track your dog’s progress, unlock Gut Checks, or get personalised meal plans and guidance.
+                  It looks like you don’t currently have an active plan. Without
+                  a plan, you won’t be able to track your dog’s progress, unlock
+                  Gut Checks, or get personalised meal plans and guidance.
                 </p>
 
-                <p className="text-sm md:text-base opacity-90 mb-4">By activating a plan, you’ll get:</p>
+                <p className="text-sm md:text-base opacity-90 mb-4">
+                  By activating a plan, you’ll get:
+                </p>
                 <ul className="list-disc list-inside mb-4 space-y-1 text-sm md:text-base opacity-90">
                   <li>Daily Gut Checks to monitor your dog’s health</li>
                   <li>Personalised meal plans tailored to their gut</li>
                   <li>Supplement guidance and adherence tracking</li>
                   <li>Phase recommendations and progress insights</li>
-                  <li>Assessment form to determine your dog’s starting phase</li>
+                  <li>
+                    Assessment form to determine your dog’s starting phase
+                  </li>
                 </ul>
 
                 {/* Compare Plans Hover Link */}
@@ -936,7 +1033,9 @@ const Intake: React.FC = () => {
               {/* Right Section: CTA */}
               <div className="flex-1 flex flex-col items-center md:items-end mt-4 md:mt-0">
                 <p className="text-white font-semibold mb-4 text-center md:text-right">
-                  Activate a plan today and start tracking your dog’s gut health! Complete the assessment form to get a personalised starting phase.
+                  Activate a plan today and start tracking your dog’s gut
+                  health! Complete the assessment form to get a personalised
+                  starting phase.
                 </p>
                 <button
                   className="px-6 py-3 bg-white text-brand-charcoal font-semibold rounded-xl shadow hover:bg-gray-100 transition text-sm md:text-base mb-2"
@@ -949,6 +1048,168 @@ const Intake: React.FC = () => {
           )}
         </div>
       </div>
+      {showWaitingAnimation && (
+        <AnimatePresence>
+          {showWaitingAnimation && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 shadow-lg"
+              style={{ backdropFilter: "blur(8px)" }}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 250, damping: 22 }}
+                className="bg-white dark:bg-brand-charcoal rounded-2xl p-5 sm:p-6 w-full max-w-md shadow-xl text-center"
+                role="status"
+                aria-live="polite"
+              >
+                {/* Animated header area: bouncing dog + paw trail + floating hearts */}
+                <div className="flex items-center justify-center gap-4 mb-4">
+                  {/* Paw trail (three paws that move & bounce) */}
+                  <div className="flex items-end gap-2">
+                    {[0, 1, 2].map((i) => (
+                      <motion.svg
+                        key={i}
+                        viewBox="0 0 24 24"
+                        className="w-6 h-6 text-brand-charcoal dark:text-emerald-400"
+                        initial={{
+                          x: i === 0 ? -18 : i === 1 ? -6 : 6,
+                          y: 6,
+                          opacity: 0,
+                        }}
+                        animate={{
+                          x: [
+                            i === 0 ? -18 : i === 1 ? -6 : 6,
+                            0,
+                            i === 0 ? 18 : i === 1 ? 6 : 24,
+                          ],
+                          y: [6, -6, 6],
+                          opacity: [0, 1, 0.9],
+                        }}
+                        transition={{
+                          repeat: Infinity,
+                          repeatType: "loop",
+                          duration: 2.2,
+                          delay: i * 0.18,
+                          ease: "easeInOut",
+                        }}
+                        fill="currentColor"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden
+                      >
+                        <path d="M12 13c-3.866 0-7 3.134-7 7h14c0-3.866-3.134-7-7-7zM7.5 8.5a1.75 1.75 0 11.001-3.501A1.75 1.75 0 017.5 8.5zm4.5-2.5a1.5 1.5 0 11.001-3.001A1.5 1.5 0 0112 6zm4 2.5a1.75 1.75 0 11.001-3.501A1.75 1.75 0 0116 8.5z" />
+                      </motion.svg>
+                    ))}
+                  </div>
+
+                  {/* Bouncing dog silhouette */}
+                  <motion.svg
+                    viewBox="0 0 24 24"
+                    className="w-12 h-12 text-brand-midgrey"
+                    initial={{ y: 0, scale: 0.98 }}
+                    animate={{ y: [0, -8, 0], scale: [0.98, 1.02, 0.98] }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1.2,
+                      ease: "easeInOut",
+                    }}
+                    fill="currentColor"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden
+                  >
+                    <path d="M5 13s1-4 4-4 4 2 6 2 4-2 4-2v7H5v-3zM3 11a1 1 0 100-2 1 1 0 000 2z" />
+                  </motion.svg>
+
+                  {/* Floating hearts */}
+                  <div className="relative w-8 h-10">
+                    {[
+                      { left: 2, delay: 0 },
+                      { left: 14, delay: 0.18 },
+                      { left: 6, delay: 0.36 },
+                    ].map((h, idx) => (
+                      <motion.span
+                        key={idx}
+                        className="absolute inline-block w-3 h-3 rounded-full bg-pink-400/90"
+                        style={{ left: h.left }}
+                        initial={{ y: 6, scale: 0.7, opacity: 0.9 }}
+                        animate={{
+                          y: [-2, -18],
+                          scale: [0.7, 1],
+                          opacity: [0.9, 0],
+                        }}
+                        transition={{
+                          repeat: Infinity,
+                          duration: 1.6,
+                          delay: h.delay,
+                          ease: "easeOut",
+                        }}
+                        aria-hidden
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title & message */}
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Generating Diagnosis
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-700 mb-4 px-2">
+                  One moment — we’re carefully checking your dog’s data and will return a clear diagnosis and recommended next steps soon.
+                </p>
+
+                {/* Loader area: progress dots + subtle progress bar */}
+                <div className="flex flex-col items-center gap-3">
+                  {/* Pulsing dots */}
+                  <div className="flex items-center gap-2" aria-hidden>
+                    {[0, 1, 2].map((n) => (
+                      <motion.span
+                        key={n}
+                        className="inline-block w-2.5 h-2.5 rounded-full bg-brand-midgrey"
+                        initial={{ scale: 0.9, opacity: 0.7 }}
+                        animate={{
+                          scale: [0.9, 1.4, 0.9],
+                          opacity: [0.7, 1, 0.7],
+                        }}
+                        transition={{
+                          repeat: Infinity,
+                          duration: 1.1,
+                          delay: n * 0.18,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Thin progress bar that pulses — purely decorative */}
+                  <div className="w-full px-6">
+                    <div className="h-1.5 bg-gray-200 dark:bg-gray-400 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-brand-charcoal"
+                        initial={{ x: "-40%" }}
+                        animate={{ x: ["-40%", "40%", "-40%"] }}
+                        transition={{
+                          repeat: Infinity,
+                          duration: 2.2,
+                          ease: "easeInOut",
+                        }}
+                        style={{ width: "60%" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Screen-reader hint (keeps UI accessible) */}
+                <span className="sr-only">
+                  Diagnosis generation in progress
+                </span>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </div>
   );
 };

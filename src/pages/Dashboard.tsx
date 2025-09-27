@@ -48,6 +48,8 @@ import {
   Lock,
   Lightbulb,
   CircleDashed,
+  Clock10,
+  AlarmCheck,
 } from "lucide-react";
 import HealthUpdateForm from "../components/HealthUpdateForm";
 import { isSubscriptionActive, jwtRequest } from "../env";
@@ -65,13 +67,14 @@ const progressSchema = z.object({
 function addQueryParam(key, value) {
   const url = new URL(window.location);
   url.searchParams.set(key, value);
-  window.history.pushState({}, '', url);
+  window.history.pushState({}, "", url);
 }
 
 type ProgressFormData = z.infer<typeof progressSchema>;
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  console.log(user);
   const {
     selectDog,
     getProtocolHistory,
@@ -93,7 +96,7 @@ const Dashboard: React.FC = () => {
   const [updatingIndex, setUpdatingIndex] = useState<number | null>(null);
   const [showIframe, setShowIframe] = useState(false);
   const [showSubmittingGutForm, setShowSubmittingGutForm] = useState(false);
-  const calendlyLink = "https://calendly.com/hello-thecaninenutritionist/45min";
+  const calendlyLink = `https://calendly.com/hello-thecaninenutritionist/45min?email=${user?.email}&name=${user?.name}`;
 
   useEffect(() => {
     setDogs(user?.dogs);
@@ -3103,6 +3106,23 @@ const Dashboard: React.FC = () => {
                                                     <p className="text-gray-900 font-medium">
                                                       {supplement.title}
                                                     </p>
+                                                    <p className="text-gray-700 text-sm">
+                                                      {supplement.description}
+                                                    </p>
+                                                    <div className="flex flex-row items-center mt-2">
+                                                      <p className="text-gray-600 text-sm mr-4">
+                                                        <span className="font-semibold">
+                                                          Dosage:
+                                                        </span>{" "}
+                                                        {supplement.dosage}
+                                                      </p>
+                                                      <p className="text-gray-600 text-sm">
+                                                        <span className="font-semibold">
+                                                          Frequency:
+                                                        </span>{" "}
+                                                        {supplement.frequency}
+                                                      </p>
+                                                    </div>
                                                   </div>
                                                 </div>
                                               )
@@ -3409,16 +3429,24 @@ const Dashboard: React.FC = () => {
                                   </>
                                 ) : (
                                   <>
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                    <div className="bg-white rounded-xl shadow-sm ">
                                       <div className="relative">
                                         {/* Button */}
-                                        <button
-                                          onClick={() => setShowIframe(true)}
-                                          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center space-x-2"
-                                        >
-                                          <span>📅</span>
-                                          <span>Book Consultation</span>
-                                        </button>
+                                        {user?.calendly_status ? (
+                                          <div className="bg-green-50 text-green-700 p-4 font-semibold flex items-center"><AlarmCheck className="font-extrabold mr-2 text-green-900" size={28}/>&nbsp;You have already scheduled a meeting on {new Date(user?.calendly_message).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })||"Unknown time"}</div>
+                                        ) : (
+                                          <>
+                                            <button
+                                              onClick={() =>
+                                                setShowIframe(true)
+                                              }
+                                              className="bg-gradient-to-r bg-brand-charcoal text-white px-6 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-[1.02] flex items-center justify-center space-x-2"
+                                            >
+                                              <span>📅</span>
+                                              <span>Book Consultation</span>
+                                            </button>
+                                          </>
+                                        )}
 
                                         {/* Iframe Modal */}
                                         {showIframe && (

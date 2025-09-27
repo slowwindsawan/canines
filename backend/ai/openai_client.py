@@ -71,7 +71,7 @@ def query_similar_embeddings(query_text, top_k=6):
         # finally, append current user message
         messages.append({"role": "user", "content": f"Rewrite the following veterinary form into a concise natural language description that summarizes the dog's health condition and dietary context. Keep it factual, no extra advice: \n{query_text}"})
 
-        payload = {"model": "gpt-4o", "messages": messages, "temperature": 1}
+        payload = {"model": "gpt-4o", "messages": messages, "temperature": 0.1}
 
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
@@ -160,7 +160,7 @@ def call_gpt_chat(
         system_message = (
             f"Context: {context}\n\n"+"""
 You are an expert veterinarian. 
-Based on the dog's description form and the context provided, provide accurate information to diagnose and guide the dog's health. Today's date is """
+Based on the dog's description form and the context provided, provide accurate information to diagnose and guide the dog's health. Ignore kibble. Today's date is """
             + datetime.now().strftime("%Y-%m-%d")
             + """
 Only return a JSON response in the following structure:
@@ -179,7 +179,7 @@ Only return a JSON response in the following structure:
             "description": "...",
             "priority": "...",
             "due_date": "...",
-            "category": "stool_quality/energy_level/overall_health",
+            "category": "only one out of (stool_quality/energy_level/overall_health)",
             "completed": false,
             "id": <add unique number here>,
             "achievement_badges": [
@@ -205,7 +205,11 @@ Only return a JSON response in the following structure:
 {
     "supplements": [
         {
-            "title": "..."
+            "title": "name of supplement",
+            "description": "...",
+            "dosage": "... in mg ",
+            "frequency": "...",
+            "duration": "..."
         }, ...
     ],
     "lifestyle_recommendations":[
