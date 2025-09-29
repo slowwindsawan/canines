@@ -74,7 +74,6 @@ type ProgressFormData = z.infer<typeof progressSchema>;
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  console.log(user);
   const {
     selectDog,
     getProtocolHistory,
@@ -601,12 +600,28 @@ const Dashboard: React.FC = () => {
                         <p className="text-gray-600">
                           {selectedDog.breed} • {selectedDog?.form_data?.age}{" "}
                           years old •{" "}
-                          {
-                            selectedDog?.form_data?.fullFormFields?.find(
-                              (f) => f.name === "weight"
-                            )?.value
-                          }{" "}
-                          lbs
+                          {Number(
+                            (!selectedDog?.weight_unit ||
+                            selectedDog?.weight_unit === "kg"
+                              ? selectedDog?.form_data?.fullFormFields?.find(
+                                  (f) => f.name === "weight"
+                                )?.value
+                              : selectedDog?.form_data?.fullFormFields?.find(
+                                  (f) => f.name === "weight"
+                                )?.value * 2.20462
+                            ).toFixed(2)
+                          )}{" "}
+                          {selectedDog?.weight_unit ? (
+                            <>
+                              {selectedDog?.weight_unit === "kg" ? (
+                                <>kg</>
+                              ) : (
+                                <>lbs</>
+                              )}
+                            </>
+                          ) : (
+                            <>kg</>
+                          )}
                         </p>
                         <div className="flex items-center space-x-2 mt-2">
                           {getTrendIcon(metrics.recentTrend)}
@@ -685,99 +700,116 @@ const Dashboard: React.FC = () => {
                                     ))}
                                 </div>
                                 <div className="mt-3 sm:mt-4 pt-3 border-t border-gray-200">
-                                  <Link
-                                    to={
-                                      isSubscriptionActive(
-                                        user?.subscription_current_period_end
-                                      )
-                                        ? "/intake"
-                                        : "#"
-                                    }
-                                    onClick={() => {
-                                      if (
-                                        isSubscriptionActive(
-                                          user?.subscription_current_period_end
-                                        )
-                                      ) {
-                                        setShowDogSelector(false);
-                                      }
-                                    }}
-                                    className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
-                                      isSubscriptionActive(
-                                        user?.subscription_current_period_end
-                                      )
-                                        ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
-                                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                    }
+                                  {(user?.subscription_tier === "foundation" &&
+                                    user?.dogs?.length < 1) ||
+                                  (user?.subscription_tier !== "foundation" &&
+                                    user?.dogs?.length < 2) ? (
+                                    <>
+                                      <Link
+                                        to={
+                                          isSubscriptionActive(
+                                            user?.subscription_current_period_end
+                                          )
+                                            ? "/intake"
+                                            : "#"
+                                        }
+                                        onClick={() => {
+                                          if (
+                                            isSubscriptionActive(
+                                              user?.subscription_current_period_end
+                                            )
+                                          ) {
+                                            setShowDogSelector(false);
+                                          }
+                                        }}
+                                        className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
+                                          isSubscriptionActive(
+                                            user?.subscription_current_period_end
+                                          )
+                                            ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
+                                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                        }
                     `}
-                                  >
-                                    <Plus
-                                      className={`h-5 w-5 ${
-                                        isSubscriptionActive(
-                                          user?.subscription_current_period_end
-                                        )
-                                          ? "text-white"
-                                          : "text-gray-400"
-                                      }`}
-                                    />
-                                    <span>
-                                      {isSubscriptionActive(
-                                        user?.subscription_current_period_end
-                                      )
-                                        ? "Add New Pet"
-                                        : "Upgrade to Add More Pets"}
-                                    </span>
-                                  </Link>
+                                      >
+                                        <Plus
+                                          className={`h-5 w-5 ${
+                                            isSubscriptionActive(
+                                              user?.subscription_current_period_end
+                                            )
+                                              ? "text-white"
+                                              : "text-gray-400"
+                                          }`}
+                                        />
+                                        <span>
+                                          {isSubscriptionActive(
+                                            user?.subscription_current_period_end
+                                          )
+                                            ? "Add New Pet"
+                                            : "Upgrade to Add More Pets"}
+                                        </span>
+                                      </Link>
+                                    </>
+                                  ) : (
+                                    <></>
+                                  )}
                                 </div>
                               </div>
                             </div>
                           )}
                         </div>
                       )}
-
-                      <Link
-                        to={
-                          isSubscriptionActive(
-                            user?.subscription_current_period_end
-                          )
-                            ? "/intake"
-                            : "#"
-                        }
-                        onClick={() => {
-                          if (
-                            isSubscriptionActive(
-                              user?.subscription_current_period_end
-                            )
-                          ) {
-                            setShowDogSelector(false);
-                          }
-                        }}
-                        className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
-                          isSubscriptionActive(
-                            user?.subscription_current_period_end
-                          )
-                            ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        }
+                      {(user?.subscription_tier === "foundation" &&
+                        user?.dogs?.length < 1) ||
+                      (user?.subscription_tier !== "foundation" &&
+                        user?.dogs?.length < 2) ? (
+                        <>
+                          <Link
+                            to={
+                              isSubscriptionActive(
+                                user?.subscription_current_period_end
+                              )
+                                ? "/intake"
+                                : "#"
+                            }
+                            onClick={() => {
+                              if (
+                                isSubscriptionActive(
+                                  user?.subscription_current_period_end
+                                )
+                              ) {
+                                setShowDogSelector(false);
+                              }
+                            }}
+                            className={` w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-200 transform ${
+                              isSubscriptionActive(
+                                user?.subscription_current_period_end
+                              )
+                                ? "bg-gradient-to-r from-brand-charcoal to-brand-midgrey text-white hover:scale-[1.03] hover:shadow-lg"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }
                     `}
-                      >
-                        <Plus
-                          className={`h-5 w-5 ${
-                            isSubscriptionActive(
-                              user?.subscription_current_period_end
-                            )
-                              ? "text-white"
-                              : "text-gray-400"
-                          }`}
-                        />
-                        <span>
-                          {isSubscriptionActive(
-                            user?.subscription_current_period_end
-                          )
-                            ? "Add New Pet"
-                            : "Upgrade to Add More Pets"}
-                        </span>
-                      </Link>
+                          >
+                            <Plus
+                              className={`h-5 w-5 ${
+                                isSubscriptionActive(
+                                  user?.subscription_current_period_end
+                                )
+                                  ? "text-white"
+                                  : "text-gray-400"
+                              }`}
+                            />
+                            <span>
+                              {isSubscriptionActive(
+                                user?.subscription_current_period_end
+                              )
+                                ? "Add New Pet"
+                                : "Upgrade to Add More Pets"}
+                            </span>
+                          </Link>
+                        </>
+                      ) : (
+                        <> </>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -3433,7 +3465,24 @@ const Dashboard: React.FC = () => {
                                       <div className="relative">
                                         {/* Button */}
                                         {user?.calendly_status ? (
-                                          <div className="bg-green-50 text-green-700 p-4 font-semibold flex items-center"><AlarmCheck className="font-extrabold mr-2 text-green-900" size={28}/>&nbsp;You have already scheduled a meeting on {new Date(user?.calendly_message).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })||"Unknown time"}</div>
+                                          <div className="bg-green-50 text-green-700 p-4 font-semibold flex items-center">
+                                            <AlarmCheck
+                                              className="font-extrabold mr-2 text-green-900"
+                                              size={28}
+                                            />
+                                            &nbsp;You have already scheduled a
+                                            meeting on{" "}
+                                            {new Date(
+                                              user?.calendly_message
+                                            ).toLocaleString("en-IN", {
+                                              day: "2-digit",
+                                              month: "short",
+                                              year: "numeric",
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                              hour12: true,
+                                            }) || "Unknown time"}
+                                          </div>
                                         ) : (
                                           <>
                                             <button
@@ -3741,7 +3790,7 @@ const Dashboard: React.FC = () => {
 
                 {/* Title & message */}
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Generating Diagnosis
+                  Generating Health Plan
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-700 mb-4 px-2">
                   Hold tight — we’re analyzing your dog’s data to create a

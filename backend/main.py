@@ -13,7 +13,7 @@ import stripe
 from datetime import datetime, timezone
 
 from app.auth_config import SECRET_KEY, ALGORITHM
-from routes import auth, formbuilder, dogs, submissions, admin, articles, chat, payments
+from routes import auth, formbuilder, dogs, submissions, admin, articles, chat, payments, feedback
 from app import models
 from app.consultaion import get_calendly_booking_message
 from app.dependecies import get_current_user
@@ -33,6 +33,7 @@ app.include_router(admin.router)
 app.include_router(articles.router)
 app.include_router(chat.router)
 app.include_router(payments.router)
+app.include_router(feedback.router)
 
 # Add CORS middleware
 app.add_middleware(

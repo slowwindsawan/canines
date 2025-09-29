@@ -440,6 +440,7 @@ const Intake: React.FC = () => {
         weight_kg: dogPayload.weight > 0 ? dogPayload.weight : undefined,
         weight_lbs:
           dogPayload.weight_lbs > 0 ? dogPayload.weight_lbs : undefined,
+        weight_unit: weightUnit,
         notes: dogPayload.behaviorNotes || undefined,
         id: dogPayload.id,
         image_url: imagePreview || undefined,
@@ -1155,7 +1156,7 @@ const Intake: React.FC = () => {
 
                 {/* Title & message */}
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Generating Diagnosis
+                  Generating Health Plan
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-700 mb-4 px-2">
                   One moment — we’re carefully checking your dog’s data and will return a clear diagnosis and recommended next steps soon.

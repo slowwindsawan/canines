@@ -17,7 +17,7 @@ from io import BytesIO
 from dotenv import load_dotenv
 
 from typing import Optional, List, Tuple, Dict
-from app.models import User, Dog, SubscriptionTier, SubscriptionStatus
+from app.models import User, Dog, SubscriptionTier, SubscriptionStatus, Feedback, User
 # Load .env from parent directory
 load_dotenv()
 
@@ -683,3 +683,29 @@ def admin_get_user_dogs(
     dogs: List[Dog] = db.query(Dog).filter(Dog.owner_id == user_id).order_by(Dog.created_at.desc()).all()
     dogs_serialized = [_serialize_dog(d) for d in dogs]
     return {"dogs": dogs_serialized}
+
+
+# --- Fetch feedback with pagination ---
+@router.get("/feedback")
+def get_feedback(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).offset(skip).limit(limit).all()
+    total = db.query(Feedback).count()
+    return {
+        "feedbacks": [
+            {
+                "id": str(f.id),
+                "name": f.name,
+                "email": f.email,
+                "message": f.message,
+                "meta": f.meta,
+                "created_at": f.created_at.isoformat(),
+            } for f in feedbacks
+        ],
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }

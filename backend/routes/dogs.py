@@ -128,8 +128,37 @@ def create_dog(
     treats missing form_data gracefully, and logs minimal debug info.
     """
     try:
-        # --- raw payload inspections (useful in logs) ---
-        # print("create_dog payload:", dog)  # uncomment if you want server logs
+        # --- plan limit check: foundation => 1 dog, others => 2 dogs ---
+        try:
+            tier = getattr(current_user, "subscription_tier", None)
+            # handle enum or string
+            if hasattr(tier, "value"):
+                tier_value = str(tier.value).lower()
+            else:
+                tier_value = (str(tier) if tier is not None else "").lower()
+
+            # default to foundation behavior if unknown/empty
+            if not tier_value:
+                tier_value = models.SubscriptionTier.FOUNDATION.value
+
+            allowed = 1 if tier_value == models.SubscriptionTier.FOUNDATION.value else 2
+
+            current_dog_count = db.query(models.Dog).filter(models.Dog.owner_id == current_user.id).count()
+
+            if current_dog_count >= allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        f"Plan limit reached: your '{tier_value}' plan allows up to {allowed} "
+                        f"dog(s). You currently have {current_dog_count}. Please upgrade to add more dogs."
+                    ),
+                )
+        except HTTPException:
+            # re-raise the explicit HTTPException we want the client to see
+            raise
+        except Exception as e:
+            # non-fatal: log and continue (don't block user creation on unexpected DB/tier parse issues)
+            print("Warning: could not enforce plan limit check:", e)
 
         # --- required field: name ---
         name_raw = dog.get("name", "") or ""
@@ -211,6 +240,7 @@ def create_dog(
         # --- coerce/normalize top-level fields ---
         dob = coerce_date(dog.get("date_of_birth") or dog.get("dob"))
         weight_kg = coerce_float(dog.get("weight_kg") or dog.get("weight"))
+        weight_unit=dog.get("weight_unit", "kg")
         breed = dog.get("breed")
         sex = dog.get("sex")
         notes = dog.get("notes") or dog.get("behaviorNotes") or ""
@@ -318,6 +348,7 @@ def create_dog(
             sex=sex,
             date_of_birth=dob,
             weight_kg=weight_kg,
+            weight_unit=weight_unit,
             notes=notes or form_data_raw.get("behaviorNotes", ""),
             form_data=form_data_raw,
             overview=generated_overview,
@@ -326,7 +357,7 @@ def create_dog(
             status="approved",
             image_url=image_url or None,
         )
-
+        
         db.add(new_dog)
         db.commit()
         db.refresh(new_dog)

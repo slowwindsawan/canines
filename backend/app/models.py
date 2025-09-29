@@ -139,6 +139,7 @@ class Dog(Base):
     sex = Column(String(20))  # "male"/"female"/"neutered"/etc. (or model an enum later)
     date_of_birth = Column(DateTime(timezone=True))
     weight_kg = Column(Float)
+    weight_unit = Column(String(25), nullable=True, default="kg")
     notes = Column(Text)
     overview=Column(JSON, nullable=True)
     protocol=Column(JSON, nullable=True)
@@ -424,3 +425,22 @@ class PasswordReset(Base):
     otp = Column(String(6), nullable=False)  # exactly 6 digits
     otp_expiry = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
+    id = uuid_pk()
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    name = Column(String(100), nullable=True)
+    email = Column(String(255), nullable=True)
+    message = Column(Text, nullable=False)
+    meta = Column(JSON, nullable=True)  # store URL, timestamp, etc.
+
+    created_at, updated_at = ts_columns()
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_feedbacks_user_created", "user_id", "created_at"),
+    )
+    

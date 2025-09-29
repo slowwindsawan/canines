@@ -2,148 +2,119 @@ import os
 import re
 import uuid
 import time
-import math
 import random
-from typing import Generator, List, Tuple
+from typing import Generator, List, Tuple, Optional
 from openai import OpenAI
 from supabase import create_client
 from dotenv import load_dotenv
 import psycopg2
-from psycopg2 import sql
-from psycopg2 import extras
+from psycopg2 import sql, extras
 from pgvector.psycopg2 import register_vector
 from pgvector import Vector
 
-# python-docx and PyMuPDF (fitz) are required.
+# optional imports for parsing
 try:
     from docx import Document as DocxDocument
-except Exception as e:
+except Exception:
     DocxDocument = None
 
 try:
-    import fitz  # PyMuPDF
-except Exception as e:
+    import fitz
+except Exception:
     fitz = None
 
 import unicodedata
 
 # ---------- improved cleaner ----------
-def clean_text_for_db(s: str, max_len: int = 10000) -> str:
-    """Remove NUL and other unprintable/control unicode characters, normalize, and truncate.
-    Keeps readable whitespace (tab, newline). Truncates to max_len characters if needed.
-    """
+def clean_text_for_db(s: Optional[str], max_len: int = 10000) -> Optional[str]:
     if s is None:
         return None
-
-    # Remove explicit NUL bytes
     s = s.replace("\x00", "")
-
-    # Normalize first to avoid weird decomposed characters
     s = unicodedata.normalize("NFC", s)
-
     cleaned_chars = []
     for ch in s:
-        # allow tab/newline/carriage return
         if ch in ("\t", "\n", "\r"):
             cleaned_chars.append(ch)
             continue
         cat = unicodedata.category(ch)
-        # skip other/control characters (categories starting with 'C')
         if cat.startswith("C"):
             continue
-        # (optionally) restrict extremely weird whitespace categories; keep normal spaces
         cleaned_chars.append(ch)
-
     out = "".join(cleaned_chars)
-
-    # collapse repeated whitespace to single spaces where appropriate (but preserve newlines)
     out = re.sub(r"[ \t\f\v]{2,}", " ", out)
-
-    # Trim leading/trailing whitespace
     out = out.strip()
-
-    # Truncate to safe length for DB / embeddings - add explicit marker
     if max_len and len(out) > max_len:
         out = out[: max_len - 14] + " ... [truncated]"
-
     return out
 
 # --- CONFIG ---
 TABLE_NAME = "documents"
 VECTOR_DIM = 1536
 
-# Batching / streaming settings to prevent timeouts
-EMBEDDING_BATCH_SIZE = 16        # how many chunks to send in one embeddings request
-DB_INSERT_BATCH_SIZE = 64        # how many rows to insert per DB batch
-EMBEDDING_RETRY_BASE = 1.0       # backoff base seconds
+EMBEDDING_BATCH_SIZE = 16
+DB_INSERT_BATCH_SIZE = 64
+EMBEDDING_RETRY_BASE = 1.0
 EMBEDDING_MAX_RETRIES = 5
 DB_RETRY_BASE = 0.5
 DB_MAX_RETRIES = 4
 
 load_dotenv()
-
-# Use environment variables (safer than hardcoding)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 DB_URL = os.getenv("DB_URL")
 BUCKET_NAME = "documents"
 
-# clients
-client = OpenAI(api_key=OPENAI_API_KEY)
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
 
-def file_exists_in_bucket(file_name, bucket_name=BUCKET_NAME):
+# ------------------ Postgres / pgvector helpers ------------------
+def ensure_pgvector_extension(conn) -> None:
+    """Create pgvector extension in public schema (idempotent). Commit afterwards."""
+    cur = conn.cursor()
     try:
-        items = supabase.storage.from_(bucket_name).list()
-        if isinstance(items, dict) and items.get("data") is not None:
-            for it in items["data"]:
-                if it.get("name") == file_name:
-                    return True
-            return False
-        for it in items:
-            if isinstance(it, dict) and it.get("name") == file_name:
-                return True
-            if isinstance(it, str) and it == file_name:
-                return True
-        return False
+        cur.execute("CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;")
+        conn.commit()
     except Exception as e:
-        print("Warning: could not list bucket items:", e)
-        return False
-
-
-def create_bucket_if_not_exists(bucket_name=BUCKET_NAME):
-    try:
-        try:
-            info = supabase.storage.get_bucket(bucket_name)
-            if info:
-                print(f"Bucket '{bucket_name}' already exists or check succeeded.")
-                return
-        except Exception:
-            pass
-
-        resp = supabase.storage.create_bucket(bucket_name, options={"public": True})
-        print(f"Bucket create response: {resp}")
-        print(f"Bucket '{bucket_name}' created (or creation attempted).")
-    except Exception as e:
-        print(f"Warning: could not ensure bucket exists: {e}")
+        # If create extension fails (e.g. managed DB without permission), raise a helpful error
+        conn.rollback()
+        raise RuntimeError(
+            "Could not create pgvector extension on the database. Ensure pgvector is installed on the server and your DB user has CREATE EXTENSION privileges. Original error: "
+            + str(e)
+        )
+    finally:
+        cur.close()
 
 
 def ensure_table_exists():
-    """Create documents table with embedding vector column and metadata, including chunk_text."""
-    try:
-        conn = psycopg2.connect(DB_URL)
-        register_vector(conn)
-        cur = conn.cursor()
-        try:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        except Exception as e:
-            print("Could not create extension (may already exist or not allowed):", e)
+    """Create documents table with embedding vector column.
 
-        cur.execute(
-            sql.SQL(
-                f"""
+    Important: create extension first, commit, then register_vector on the client side.
+    """
+    if not DB_URL:
+        raise RuntimeError("DB_URL not configured. Set DB_URL environment variable.")
+
+    conn = psycopg2.connect(DB_URL)
+    try:
+        # 1) ensure extension is installed on DB (this must run in DB where app connects)
+        try:
+            ensure_pgvector_extension(conn)
+        except Exception as e:
+            # bubble helpful message
+            print("Error creating extension:", e)
+            raise
+
+        # 2) register client-side adapter so psycopg2 knows how to adapt Vector
+        try:
+            register_vector(conn)
+        except Exception as e:
+            # register_vector should normally work now that extension exists
+            print("Warning: register_vector failed after creating extension:", e)
+
+        cur = conn.cursor()
+        create_table_sql = sql.SQL(
+            f"""
             CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
                 id SERIAL PRIMARY KEY,
                 filename TEXT,
@@ -152,58 +123,40 @@ def ensure_table_exists():
                 embedding VECTOR({VECTOR_DIM}),
                 created_at TIMESTAMPTZ DEFAULT now()
             );
-        """
-            )
+            """
         )
+        cur.execute(create_table_sql)
         conn.commit()
         cur.close()
-        conn.close()
         print(f"Table '{TABLE_NAME}' is ready (includes chunk_text).")
+    finally:
+        conn.close()
+
+
+# ------------------ Supabase helpers (unchanged, defensive) ------------------
+def create_bucket_if_not_exists(bucket_name=BUCKET_NAME):
+    if supabase is None:
+        print("Supabase not configured; skipping bucket creation.")
+        return
+    try:
+        try:
+            info = supabase.storage.get_bucket(bucket_name)
+            if info:
+                print(f"Bucket '{bucket_name}' already exists or check succeeded.")
+                return
+        except Exception:
+            pass
+        resp = supabase.storage.create_bucket(bucket_name, options={"public": True})
+        print(f"Bucket create response: {resp}")
     except Exception as e:
-        print(f"Error ensuring table exists: {e}")
+        print(f"Warning: could not ensure bucket exists: {e}")
 
 
-# def upload_file_to_supabase(
-#     file_path, bucket_name=BUCKET_NAME, overwrite=True, use_unique_name=False
-# ):
-#     original_name = os.path.basename(file_path)
-#     file_name = original_name
-#     if use_unique_name:
-#         base, ext = os.path.splitext(original_name)
-#         file_name = f"{base}_{uuid.uuid4().hex[:8]}{ext}"
-
-#     with open(file_path, "rb") as f:
-#         data = f.read()
-
-#     for attempt in range(1, 6):
-#         try:
-#             if overwrite:
-#                 try:
-#                     resp = supabase.storage.from_(bucket_name).upload(
-#                         file_name, data, {"upsert": True}
-#                     )
-#                     public_url = (
-#                         f"{SUPABASE_URL}/storage/v1/object/public/{bucket_name}/{file_name}"
-#                     )
-#                     return file_name, public_url
-#                 except TypeError:
-#                     pass
-#                 except Exception as e:
-#                     print("Upsert attempt failed:", e)
-
-#             resp = supabase.storage.from_(bucket_name).upload(file_name, data)
-#             public_url = (
-#                 f"{SUPABASE_URL}/storage/v1/object/public/{bucket_name}/{file_name}"
-#             )
-#             return file_name, public_url
-#         except Exception as final_e:
-#             print(f"Upload attempt {attempt} failed: {final_e}")
-#             if attempt >= 5:
-#                 raise RuntimeError(f"Failed upload after retries: {final_e}")
-#             time.sleep(attempt * 0.8 + random.random() * 0.5)
-
+# ------------------ Embeddings ------------------
 
 def generate_embedding_batch(texts: List[str], model="text-embedding-3-small") -> List[List[float]]:
+    if client is None:
+        raise RuntimeError("OpenAI client not configured (OPENAI_API_KEY missing).")
     attempt = 0
     while True:
         attempt += 1
@@ -221,45 +174,28 @@ def generate_embedding_batch(texts: List[str], model="text-embedding-3-small") -
             time.sleep(backoff)
 
 
-# --- NEW: streaming chunk generator for DOCX and PDF only ---
+# ------------------ Chunk streaming (unchanged) ------------------
 def _words_from_text_stream(text: str):
-    """Yield words from a block of text (generator)."""
     if not text:
         return
-    # split on whitespace; keep punctuation as part of word (consistent with previous approach)
     for w in re.split(r"\s+", text.strip()):
         if w:
             yield w
 
 
-def chunk_generator_from_file(
-    file_path: str, chunk_size: int = 500, chunk_overlap: int = 50
-) -> Generator[str, None, None]:
-    """
-    Stream a file (DOCX or PDF) and yield word-based chunks without loading entire large PDF into memory.
-    chunk_size and chunk_overlap are in words.
-
-    Only `.docx` and `.pdf` are supported; other extensions raise ValueError.
-    """
+def chunk_generator_from_file(file_path: str, chunk_size: int = 500, chunk_overlap: int = 50) -> Generator[str, None, None]:
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"No such file: {file_path}")
-
     ext = os.path.splitext(file_path)[1].lower().lstrip(".")
     if ext not in ("pdf", "docx"):
         raise ValueError("Only .pdf and .docx files are supported by this function.")
-
     carry: List[str] = []
-
     def _maybe_yield_from_carry():
-        """Yield chunk(s) while carry has >= chunk_size words."""
         nonlocal carry
         while len(carry) >= chunk_size:
             chunk_words = carry[:chunk_size]
             yield " ".join(chunk_words).strip()
-            # keep overlap
             carry = carry[chunk_size - chunk_overlap :]
-
-    # PDF streaming (page-by-page)
     if ext == "pdf":
         if fitz is None:
             raise RuntimeError("PyMuPDF (fitz) is required for PDF parsing. Install with `pip install PyMuPDF`.")
@@ -267,26 +203,20 @@ def chunk_generator_from_file(
         try:
             for page in doc:
                 page_text = page.get_text("text") or ""
-                # break page_text into lines then words to avoid huge single-line growth
                 for line in page_text.splitlines():
                     for w in _words_from_text_stream(line):
                         carry.append(w)
                         if len(carry) >= chunk_size:
-                            # yield as many chunks as possible
                             for out in _maybe_yield_from_carry():
                                 yield out
-            # flush remaining
             if carry:
                 yield " ".join(carry).strip()
         finally:
             doc.close()
-
-    # DOCX streaming (paragraphs + tables)
-    else:  # docx
+    else:
         if DocxDocument is None:
             raise RuntimeError("python-docx is required for DOCX parsing. Install with `pip install python-docx`.")
         doc = DocxDocument(file_path)
-        # iterate paragraphs
         for para in doc.paragraphs:
             text = para.text or ""
             for line in text.splitlines():
@@ -295,7 +225,6 @@ def chunk_generator_from_file(
                     if len(carry) >= chunk_size:
                         for out in _maybe_yield_from_carry():
                             yield out
-        # iterate tables (cells)
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
@@ -306,21 +235,16 @@ def chunk_generator_from_file(
                             if len(carry) >= chunk_size:
                                 for out in _maybe_yield_from_carry():
                                     yield out
-        # flush remaining
         if carry:
             yield " ".join(carry).strip()
 
 
+# ------------------ DB insert ------------------
 def store_metadata_and_embedding_batch(
-    rows: List[Tuple[str, str, str, Vector]],
-    table_name: str = TABLE_NAME,
-    db_url: str = DB_URL,
+    rows: List[Tuple[str, str, str, Vector]], table_name: str = TABLE_NAME, db_url: str = DB_URL
 ):
-    """Insert many rows at once. rows = list of tuples (filename, url, chunk_text, Vector(embedding))."""
     if not rows:
         return []
-
-    # Sanitize all string fields before trying to insert
     sanitized_rows = []
     for fn, url, chunk_txt, emb in rows:
         safe_fn = clean_text_for_db(fn) if isinstance(fn, str) else fn
@@ -335,10 +259,18 @@ def store_metadata_and_embedding_batch(
         conn = None
         try:
             conn = psycopg2.connect(db_url)
-            register_vector(conn)
+            # ensure extension exists and register adapter on this connection
+            try:
+                ensure_pgvector_extension(conn)
+            except Exception as e:
+                # If extension can't be created here, it's still possible it's present; continue but warn
+                print("Warning: ensure_pgvector_extension failed (may already exist or lacks permission):", e)
+            try:
+                register_vector(conn)
+            except Exception as e:
+                print("Warning: register_vector failed:", e)
+
             cur = conn.cursor()
-            # Use execute_values to insert many rows at once and RETURNING id
-            # Note: extras.execute_values expects a query with %s placeholder for VALUES
             insert_query = sql.SQL(
                 f"INSERT INTO {table_name} (filename, url, chunk_text, embedding) VALUES %s RETURNING id;"
             )
@@ -369,6 +301,7 @@ def store_metadata_and_embedding_batch(
             time.sleep(backoff)
 
 
+# ------------------ ingest flow ------------------
 def ingest_file(
     file_path,
     bucket_name=BUCKET_NAME,
@@ -379,11 +312,6 @@ def ingest_file(
     embedding_batch_size=EMBEDDING_BATCH_SIZE,
     db_insert_batch_size=DB_INSERT_BATCH_SIZE,
 ):
-    """Stream the file into chunks, batch embeddings, and batch insert into DB.
-
-    Only supports .docx and .pdf. Returns list of inserted ids.
-    """
-    # ensure infra
     create_bucket_if_not_exists(bucket_name)
     ensure_table_exists()
 
@@ -392,13 +320,6 @@ def ingest_file(
         raise ValueError("ingest_file only supports .pdf and .docx files")
 
     file_name = os.path.basename(file_path)
-    file_url = None
-    # if upload:
-    #     file_name, file_url = upload_file_to_supabase(
-    #         file_path, bucket_name=bucket_name, overwrite=overwrite
-    #     )
-    #     print(f"Uploaded file -> {file_url}")
-
     chunks_iter = chunk_generator_from_file(file_path, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
     pending_chunk_labels: List[str] = []
@@ -414,7 +335,6 @@ def ingest_file(
         batch_count += 1
         print(f"[batch {batch_count}] Requesting embeddings for {len(batch_chunk_labels)} chunks...")
         embeddings = generate_embedding_batch(batch_chunk_labels)
-        # prepare rows for DB insertion
         rows = []
         for (chunk_label, _meta), emb in zip(batch_metadata, embeddings):
             rows.append((file_name, "None", chunk_label, Vector(emb)))
@@ -429,7 +349,7 @@ def ingest_file(
         raw_chunk_label = f"[chunk {total_chunks_processed}] " + chunk
         chunk_label = clean_text_for_db(raw_chunk_label)
         pending_chunk_labels.append(chunk_label)
-        pending_chunks_metadata.append((chunk_label, ""))  # reserved for future metadata
+        pending_chunks_metadata.append((chunk_label, ""))
         if len(pending_chunk_labels) >= embedding_batch_size:
             flush_embedding_and_insert(pending_chunk_labels, pending_chunks_metadata)
             pending_chunk_labels = []
@@ -442,71 +362,89 @@ def ingest_file(
     return all_inserted_ids
 
 
-def generate_embedding_from_text(text):
-    return generate_embedding_batch([text])[0]
-
-
-def generate_embedding_from_file(file_path):
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
-    return generate_embedding_from_text(content)
-
+# ------------------ query ------------------
 
 def query_similar_embeddings(query_text, top_k=5):
     try:
-        query_embedding = generate_embedding_from_text(query_text)
-
+        query_embedding = generate_embedding_batch([query_text])[0]
         conn = psycopg2.connect(DB_URL)
         try:
-            register_vector(conn)
-        except Exception:
-            print("Warning: register_vector failed. Ensure pgvector is installed and connection is ok.")
+            # try to register adapter on this connection
+            try:
+                register_vector(conn)
+            except Exception:
+                print("Warning: register_vector failed. Ensure pgvector is installed and connection is ok.")
 
-        cur = conn.cursor()
-        cur.execute(
-            sql.SQL(
-                """
+            cur = conn.cursor()
+            cur.execute(
+                sql.SQL(
+                    """
                     SELECT id, filename, url, chunk_text, embedding, embedding <-> %s AS distance
                     FROM {table}
                     ORDER BY distance
                     LIMIT %s;
-                """
-            ).format(table=sql.Identifier(TABLE_NAME)),
-            (Vector(query_embedding), top_k),
-        )
-
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        results = []
-        for r in rows:
-            _id, filename, url, chunk_text_val, embedding_val, distance = r
-            results.append(
-                {
-                    "id": _id,
-                    "filename": filename,
-                    "url": url,
-                    "chunk_text": chunk_text_val,
-                    "embedding": embedding_val,
-                    "distance": float(distance) if distance is not None else None,
-                }
+                    """
+                ).format(table=sql.Identifier(TABLE_NAME)),
+                (Vector(query_embedding), top_k),
             )
-        return results
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
 
+            results = []
+            for r in rows:
+                _id, filename, url, chunk_text_val, embedding_val, distance = r
+                results.append(
+                    {
+                        "id": _id,
+                        "filename": filename,
+                        "url": url,
+                        "chunk_text": chunk_text_val,
+                        "embedding": embedding_val,
+                        "distance": float(distance) if distance is not None else None,
+                    }
+                )
+            return results
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         print(f"Error querying embeddings: {e}")
         return []
 
 
+# ------------------ optional test helper ------------------
+def test_vector_insert():
+    if not DB_URL:
+        print("DB_URL not set; can't run test")
+        return
+    conn = psycopg2.connect(DB_URL)
+    try:
+        ensure_pgvector_extension(conn)
+        register_vector(conn)
+        cur = conn.cursor()
+        cur.execute("DROP TABLE IF EXISTS test_vector_table;")
+        cur.execute("CREATE TABLE test_vector_table (id SERIAL PRIMARY KEY, v VECTOR(3));")
+        cur.execute("INSERT INTO test_vector_table (v) VALUES (%s) RETURNING id;", (Vector([0.1,0.2,0.3]),))
+        print("Inserted id:", cur.fetchone())
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     # quick demo (uncomment to run)
+    # test_vector_insert()
     # inserted = ingest_file(
-    #     "D:/clients/Canines/backend/training-doc/dc.txt",
+    #     "D:/clients/Canines/backend/training-doc/dc1.docx",
     #     chunk_size=200,
     #     chunk_overlap=30,
     #     embedding_batch_size=EMBEDDING_BATCH_SIZE,
     #     db_insert_batch_size=DB_INSERT_BATCH_SIZE,
     # )
     # print("Inserted chunk ids:", inserted)
+
     print([l["chunk_text"] for l in query_similar_embeddings("amino qauantity.", top_k=6)])

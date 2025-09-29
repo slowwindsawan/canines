@@ -37,6 +37,7 @@ import PublicRoute from "./PublicRoute";
 import BlogEditor from "./pages/BlogEditor";
 import BlogList from "./pages/BlogList";
 import UsersList from "./pages/admin/UsersList";
+import FeedbacksPage from "./pages/admin/Feedbacks";
 
 // Layouts
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -159,6 +160,16 @@ const App: React.FC = () => {
                   <AdminRoute>
                     <AdminLayout>
                       <UsersList />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/feedbacks"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <FeedbacksPage />
                     </AdminLayout>
                   </AdminRoute>
                 }
